@@ -6,15 +6,18 @@
 //!
 //! # Logging
 //!
-//! The websocket libraries log the upgrade request at trace level. The API key travels
-//! in a header marked sensitive, which they print as `Sensitive`, but the host app must
-//! still cap the `tungstenite` and `tokio_tungstenite` log targets at `Info` so nothing
-//! about the connection is written to a log file.
+//! The websocket libraries log at trace level, and that is not safe: one line prints the
+//! raw upgrade request, API key included, and another prints every received message,
+//! transcript text included. The key header is marked sensitive, but that only changes
+//! how the header prints through `Debug`; it does not stop those lines. The ONLY
+//! protection is that the host app caps the `tungstenite` and `tokio_tungstenite` log
+//! targets at `Info`, so nothing about the connection is written to a log file.
 //!
 //! # Threads
 //!
-//! A session is a task on a tokio runtime the caller owns. See
-//! [`ScribeSession::connect`] for the exact calling pattern from a plain `std::thread`.
+//! A session is a task on a tokio runtime the caller owns. [`ScribeSession::start`] is
+//! called at key press and returns at once; see it for the exact calling pattern from a
+//! plain `std::thread`.
 
 mod config;
 mod error;

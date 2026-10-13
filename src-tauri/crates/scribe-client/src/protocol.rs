@@ -76,7 +76,8 @@ pub(crate) fn parse_server_message(raw: &str) -> Result<ServerMessage, serde_jso
         "committed_transcript" => ServerMessage::Committed(field("text")),
         "warning" => ServerMessage::Warning(field("warning")),
         // The `error` field, not a list of known types, decides: the vendor adds types.
-        _ => match value.get("error") {
+        // A JSON `null` error field means "no error".
+        _ => match value.get("error").filter(|error| !error.is_null()) {
             Some(error) => ServerMessage::Error {
                 code: kind,
                 message: error
@@ -175,6 +176,14 @@ mod tests {
                 "{code}"
             );
         }
+    }
+
+    #[test]
+    fn a_null_error_field_is_not_an_error() {
+        assert_eq!(
+            parse_server_message(r#"{"message_type":"final_transcript","error":null}"#).unwrap(),
+            ServerMessage::Ignored("final_transcript".into())
+        );
     }
 
     #[test]

@@ -10,7 +10,9 @@ pub enum ScribeError {
     Quota(String),
     #[error("rate limited ({code}): {message}")]
     RateLimited { code: String, message: String },
-    /// The server refused a commit, usually because under 0.3 s of audio was uncommitted.
+    /// The server refused a commit for having under 0.3 s of uncommitted audio. Every
+    /// commit this crate sends carries at least 0.325 s, so this means the server refused
+    /// audio the client believes it sent: the text may be incomplete.
     #[error("commit refused: {0}")]
     CommitThrottled(String),
     #[error("session time limit reached: {0}")]
@@ -73,11 +75,7 @@ impl ScribeError {
     /// The server's way of saying "there is nothing to transcribe in what you committed".
     /// It means empty text, not a failure.
     pub(crate) fn is_nothing_to_transcribe(&self) -> bool {
-        match self {
-            Self::CommitThrottled(_) => true,
-            Self::Server { code, .. } => code == "insufficient_audio_activity",
-            _ => false,
-        }
+        matches!(self, Self::Server { code, .. } if code == "insufficient_audio_activity")
     }
 }
 
@@ -88,10 +86,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn commit_throttled_has_its_own_variant_and_is_not_a_rate_limit() {
+    fn commit_throttled_is_a_real_error_not_an_empty_answer() {
         let error = ScribeError::from_server("commit_throttled", "need 0.3s".into());
         assert_eq!(error, ScribeError::CommitThrottled("need 0.3s".into()));
-        assert!(error.is_nothing_to_transcribe());
+        assert!(!error.is_nothing_to_transcribe());
         assert!(!error.is_fatal());
     }
 

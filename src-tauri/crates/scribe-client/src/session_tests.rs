@@ -7,7 +7,9 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::{sleep, timeout};
 
-use crate::mock_server::{committed, error_frame, is_commit, partial, samples_in, MockServer};
+use crate::mock_server::{
+    committed, error_frame, first_sample, is_commit, partial, samples_in, MockServer,
+};
 use crate::{ScribeConfig, ScribeError, ScribeEvent, ScribeSession, Transcript};
 
 fn config_for(server: &MockServer) -> ScribeConfig {
@@ -18,10 +20,15 @@ fn config_for(server: &MockServer) -> ScribeConfig {
     config
 }
 
+/// Starts a session and waits until it is connected, so the test starts from a live socket.
+async fn open_with(config: ScribeConfig) -> (ScribeSession, UnboundedReceiver<ScribeEvent>) {
+    let (session, mut events) = ScribeSession::start(&Handle::current(), config);
+    wait_for(&mut events, |e| *e == ScribeEvent::Ready).await;
+    (session, events)
+}
+
 async fn open(server: &MockServer) -> (ScribeSession, UnboundedReceiver<ScribeEvent>) {
-    ScribeSession::connect(&Handle::current(), config_for(server))
-        .await
-        .unwrap()
+    open_with(config_for(server)).await
 }
 
 /// Feeds `samples` of non-silent audio the way the app does: 256 samples per call.
@@ -234,11 +241,14 @@ async fn insufficient_audio_activity_means_empty_text_not_an_error() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn commit_throttled_means_nothing_more_to_transcribe_not_an_error() {
+async fn commit_throttled_is_an_error_because_the_server_refused_audio_we_sent() {
     let reply = error_frame("commit_throttled", "need 0.3s");
     assert_eq!(
         finish_after_server_replies_to_commit_with(reply).await,
-        Transcript::default()
+        Transcript {
+            text: String::new(),
+            error: Some(ScribeError::CommitThrottled("need 0.3s".into()))
+        }
     );
 }
 
@@ -258,9 +268,7 @@ async fn unanswered_commit_returns_within_the_finish_timeout_with_the_text_so_fa
     .await;
     let mut config = config_for(&server);
     config.finish_timeout = Duration::from_millis(400);
-    let (mut session, mut events) = ScribeSession::connect(&Handle::current(), config)
-        .await
-        .unwrap();
+    let (mut session, mut events) = open_with(config).await;
     feed(&mut session, 12_000);
     wait_for(&mut events, |e| matches!(e, ScribeEvent::Committed(_))).await;
     feed(&mut session, 8_000);
@@ -314,9 +322,7 @@ async fn stalled_socket_fails_with_network_error_within_the_send_timeout_and_dro
     .await;
     let mut config = config_for(&server);
     config.send_timeout = Duration::from_millis(300);
-    let (mut session, _events) = ScribeSession::connect(&Handle::current(), config)
-        .await
-        .unwrap();
+    let (mut session, _events) = open_with(config).await;
     let started = Instant::now();
     // Queueing never blocks; once the stalled write times out, sends start failing.
     for _ in 0..12_000 {
@@ -336,7 +342,11 @@ async fn stalled_socket_fails_with_network_error_within_the_send_timeout_and_dro
     .await
     .expect("a stalled socket must fail the session, not hang it");
 
-    assert!(matches!(failure, ScribeError::Network(_)), "{failure:?}");
+    // The write timeout itself fired, not some other network failure.
+    assert_eq!(
+        failure,
+        ScribeError::Network("sending audio timed out".into())
+    );
     assert!(started.elapsed() < Duration::from_secs(3));
 
     let dropped = Instant::now();
@@ -434,12 +444,16 @@ fn a_plain_std_thread_can_run_a_whole_session_and_audio_uploads_during_the_hold(
     let received = server.received.clone();
 
     let (transcript, uploaded_before_finish) = std::thread::spawn(move || {
-        let (mut session, _events) = ScribeSession::connect_blocking(&handle, config).unwrap();
+        let (mut session, _events) = ScribeSession::start(&handle, config);
         for frame in vec![0.1f32; 16_000].chunks(256) {
             session.send_audio(frame).unwrap();
         }
-        std::thread::sleep(Duration::from_millis(300));
-        let uploaded = received.lock().unwrap().len();
+        // The frames go out while the key is still held, not at `finish`.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while received.lock().unwrap().len() < 10 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let uploaded = received.lock().unwrap().clone();
         (session.finish_blocking(), uploaded)
     })
     .join()
@@ -447,8 +461,305 @@ fn a_plain_std_thread_can_run_a_whole_session_and_audio_uploads_during_the_hold(
 
     assert_eq!(transcript.text, "from a thread");
     assert_eq!(transcript.error, None);
-    assert_eq!(
-        uploaded_before_finish, 10,
-        "ten 100 ms frames, no commit yet"
+    assert_eq!(uploaded_before_finish.len(), 10, "ten 100 ms frames");
+    assert!(
+        !uploaded_before_finish.iter().any(is_commit),
+        "no commit yet"
     );
+}
+
+/// 36 s of uncommitted audio: past the point where the server has committed by itself.
+const PAST_AUTO_COMMIT: usize = 36 * 16_000;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn throttle_and_close_after_an_auto_commit_return_the_first_segment_with_an_error() {
+    // The release came before the server's automatic commit reached us: it answers the
+    // hold with that commit, then refuses ours and hangs up.
+    let server = MockServer::start(|mut conn| async move {
+        while let Some(frame) = conn.recv().await {
+            if is_commit(&frame) {
+                conn.send(committed("first segment")).await;
+                conn.send(error_frame("commit_throttled", "need 0.3s"))
+                    .await;
+                conn.close(1008, "throttled").await;
+                break;
+            }
+        }
+        pending::<()>().await;
+    })
+    .await;
+    let (mut session, _events) = open(&server).await;
+    feed(&mut session, PAST_AUTO_COMMIT);
+
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "first segment");
+    assert_eq!(
+        transcript.error,
+        Some(ScribeError::CommitThrottled("need 0.3s".into()))
+    );
+    // With an automatic commit possibly in flight the commit frame carries a full
+    // minimum commit by itself, so the server can always answer it.
+    let frames = server.received.lock().unwrap().clone();
+    let commit = frames.last().unwrap();
+    assert!(is_commit(commit));
+    assert!(samples_in(commit) >= 5_200);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn grace_expiring_with_one_commit_when_two_were_due_sets_an_error() {
+    let server = MockServer::start(|mut conn| async move {
+        while let Some(frame) = conn.recv().await {
+            if is_commit(&frame) {
+                conn.send(committed("only segment")).await;
+            }
+        }
+    })
+    .await;
+    let (mut session, _events) = open(&server).await;
+    feed(&mut session, PAST_AUTO_COMMIT);
+
+    let started = Instant::now();
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "only segment");
+    assert_eq!(
+        transcript.error,
+        Some(ScribeError::Timeout(
+            "waiting for the commit after an automatic one"
+        ))
+    );
+    assert!(started.elapsed() >= Duration::from_millis(450));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_hold_near_the_auto_commit_point_pays_the_grace_and_is_still_complete() {
+    // 34 s: the automatic commit may have fired, but nothing proves it, so one reply
+    // after the grace counts as complete.
+    let server = MockServer::start(|mut conn| async move {
+        while let Some(frame) = conn.recv().await {
+            if is_commit(&frame) {
+                conn.send(committed("one segment")).await;
+            }
+        }
+    })
+    .await;
+    let (mut session, _events) = open(&server).await;
+    feed(&mut session, 34 * 16_000);
+
+    let started = Instant::now();
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "one segment");
+    assert_eq!(transcript.error, None);
+    assert!(started.elapsed() >= Duration::from_millis(450));
+    assert!(started.elapsed() < Duration::from_millis(1_500));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_empty_answer_after_an_auto_commit_completes_the_transcript() {
+    // The tail after the automatic commit held no speech: "nothing to transcribe" is the
+    // second reply, and the text is complete.
+    let server = MockServer::start(|mut conn| async move {
+        while let Some(frame) = conn.recv().await {
+            if is_commit(&frame) {
+                conn.send(committed("whole hold")).await;
+                conn.send(error_frame("insufficient_audio_activity", "no speech"))
+                    .await;
+            }
+        }
+    })
+    .await;
+    let (mut session, _events) = open(&server).await;
+    feed(&mut session, PAST_AUTO_COMMIT);
+
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "whole hold");
+    assert_eq!(transcript.error, None);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_close_frame_with_a_code_becomes_closed_with_that_code_and_reason() {
+    let server = MockServer::start(|mut conn| async move {
+        conn.recv().await;
+        conn.close(1008, "policy violation").await;
+        pending::<()>().await;
+    })
+    .await;
+    let (mut session, _events) = open(&server).await;
+    session.send_audio(&[0.1; 1600]).unwrap();
+
+    let closed = ScribeError::Closed {
+        code: 1008,
+        reason: "policy violation".into(),
+    };
+    let failure = timeout(Duration::from_secs(3), async {
+        loop {
+            if let Err(error) = session.send_audio(&[0.1; 256]) {
+                return error;
+            }
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the caller learns about the close during the hold");
+    assert_eq!(failure, closed);
+    assert_eq!(session.finish().await.error, Some(closed));
+}
+
+/// Starts against a server that cannot connect, feeds audio and returns what both
+/// `send_audio` and `finish` reported.
+async fn failure_seen_by_send_audio_and_by_finish(
+    config: ScribeConfig,
+) -> (ScribeError, Transcript) {
+    let (mut session, _events) = ScribeSession::start(&Handle::current(), config);
+    // The first call may beat the connect failure; audio fed while connecting is queued.
+    let _ = session.send_audio(&[0.1; 1600]);
+    let from_send_audio = timeout(Duration::from_secs(3), async {
+        loop {
+            if let Err(error) = session.send_audio(&[0.1; 256]) {
+                return error;
+            }
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the caller learns about the failed connect during the hold");
+    (from_send_audio, session.finish().await)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn http_401_on_upgrade_is_fatal_for_send_audio_and_finish() {
+    let server = MockServer::start_rejecting(401).await;
+
+    let (from_send, transcript) =
+        failure_seen_by_send_audio_and_by_finish(config_for(&server)).await;
+
+    assert!(matches!(from_send, ScribeError::Auth(_)), "{from_send:?}");
+    assert_eq!(transcript.text, "");
+    assert_eq!(transcript.error, Some(from_send));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_server_that_never_sends_session_started_times_out_for_send_audio_and_finish() {
+    let server = MockServer::start_silent(|conn| async move {
+        let _held_open = conn;
+        pending::<()>().await
+    })
+    .await;
+    let mut config = config_for(&server);
+    config.connect_timeout = Duration::from_millis(300);
+
+    let started = Instant::now();
+    let (from_send, transcript) = failure_seen_by_send_audio_and_by_finish(config).await;
+
+    assert_eq!(from_send, ScribeError::Timeout("connecting"));
+    assert_eq!(transcript.error, Some(ScribeError::Timeout("connecting")));
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_error_frame_before_session_started_is_fatal_for_send_audio_and_finish() {
+    let server = MockServer::start_silent(|mut conn| async move {
+        conn.send(error_frame("auth_error", "bad key")).await;
+        pending::<()>().await;
+    })
+    .await;
+
+    let (from_send, transcript) =
+        failure_seen_by_send_audio_and_by_finish(config_for(&server)).await;
+
+    assert_eq!(from_send, ScribeError::Auth("bad key".into()));
+    assert_eq!(transcript.error, Some(ScribeError::Auth("bad key".into())));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn audio_fed_before_session_started_arrives_afterwards_complete_and_in_order() {
+    let server = MockServer::start_silent(|mut conn| async move {
+        sleep(Duration::from_millis(300)).await;
+        conn.send_session_started().await;
+        while let Some(frame) = conn.recv().await {
+            if is_commit(&frame) {
+                conn.send(committed("queued audio")).await;
+            }
+        }
+    })
+    .await;
+    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config_for(&server));
+    // Five frames of rising level, all fed while the socket is still connecting.
+    for level in 1..=5 {
+        session.send_audio(&vec![0.1 * level as f32; 1600]).unwrap();
+    }
+    assert!(server.received.lock().unwrap().is_empty());
+
+    // `finish` straight away: it has to wait for the connect, then commit after the audio.
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "queued audio");
+    assert_eq!(transcript.error, None);
+    let frames = server.received.lock().unwrap().clone();
+    let levels: Vec<i16> = frames[..5].iter().map(first_sample).collect();
+    assert!(
+        levels.windows(2).all(|pair| pair[0] < pair[1]),
+        "{levels:?}"
+    );
+    assert_eq!(frames[..5].iter().map(samples_in).sum::<usize>(), 8_000);
+    assert!(is_commit(&frames[5]));
+    assert_eq!(events.recv().await, Some(ScribeEvent::Ready));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn dropping_the_session_during_connect_ends_the_task() {
+    let server = MockServer::start_silent(|conn| async move {
+        let _held_open = conn;
+        pending::<()>().await
+    })
+    .await;
+    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config_for(&server));
+    session.send_audio(&[0.1; 1600]).unwrap();
+    sleep(Duration::from_millis(100)).await;
+
+    drop(session);
+
+    // The task owns the only event sender, so the stream ends when the task does.
+    let ended = timeout(Duration::from_secs(1), events.recv())
+        .await
+        .expect("the connect is cancelled at once");
+    assert_eq!(ended, None);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_task_that_dies_without_a_fatal_error_gives_an_error_not_a_clean_transcript() {
+    // The server never answers the commit. The runtime running the session is shut down
+    // while `finish` waits, which ends the task without it recording anything.
+    let server =
+        MockServer::start(|mut conn| async move { while conn.recv().await.is_some() {} }).await;
+    let session_runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    let (mut session, mut events) =
+        ScribeSession::start(session_runtime.handle(), config_for(&server));
+    wait_for(&mut events, |e| *e == ScribeEvent::Ready).await;
+    session.send_audio(&[0.1; 16_000]).unwrap();
+    let stopper = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(200));
+        session_runtime.shutdown_background();
+    });
+
+    let started = Instant::now();
+    let transcript = session.finish().await;
+    stopper.join().unwrap();
+
+    assert_eq!(transcript.text, "");
+    assert_eq!(
+        transcript.error,
+        Some(ScribeError::Closed {
+            code: 1006,
+            reason: "session task ended".into()
+        })
+    );
+    assert!(started.elapsed() < Duration::from_secs(1));
 }

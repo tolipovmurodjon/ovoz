@@ -6,9 +6,11 @@
 //!   cargo run --release --example bench -- --long    (one 60 s hold; does not write results.json)
 //!
 //! Audio is streamed in 256-sample (16 ms) frames at real-time pace, the way the app's
-//! recorder delivers it. Latency runs from the last frame to the returned transcript.
-//! Connect time (websocket open to `session_started`) is timed apart, because a short
-//! tap pays for it in full.
+//! recorder delivers it, starting the instant `start` returns, as at a key press. So the
+//! connection overlaps the first words. Three times are reported per clip:
+//!   connect  key press to `ScribeEvent::Ready`
+//!   finish   last frame to the returned transcript (the wait after the key is released)
+//!   total    key press to the returned transcript (audio length + the extra a short tap pays)
 
 mod wer;
 
@@ -53,8 +55,10 @@ struct Row {
     hypothesis: String,
     wer: Option<f64>,
     edits: Option<usize>,
+    audio_ms: u128,
     connect_ms: Option<u128>,
     latency_ms: Option<u128>,
+    total_ms: Option<u128>,
     error: Option<String>,
 }
 
@@ -68,6 +72,9 @@ struct Summary {
     latency_worst_ms: u128,
     connect_median_ms: u128,
     connect_worst_ms: u128,
+    /// Key press to text, minus the clip length: what a tap pays after the speech ends.
+    extra_over_audio_median_ms: u128,
+    extra_over_audio_worst_ms: u128,
 }
 
 fn audio_dir() -> PathBuf {
@@ -94,15 +101,23 @@ fn read_clip(path: &PathBuf) -> Vec<f32> {
 
 struct Outcome {
     text: String,
-    connect_ms: u128,
+    connect_ms: Option<u128>,
     latency_ms: u128,
+    total_ms: u128,
     error: Option<ScribeError>,
 }
 
 async fn transcribe(key: &str, samples: &[f32]) -> Result<Outcome, ScribeError> {
-    let connect_started = Instant::now();
-    let (mut session, _events) = ScribeSession::connect(&Handle::current(), config(key)).await?;
-    let connect_ms = connect_started.elapsed().as_millis();
+    let pressed = Instant::now();
+    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config(key));
+    let ready = tokio::spawn(async move {
+        while let Some(event) = events.recv().await {
+            if event == ScribeEvent::Ready {
+                return Some(Instant::now());
+            }
+        }
+        None
+    });
 
     let mut pace = interval(Duration::from_millis(16));
     for frame in samples.chunks(FRAME_SAMPLES) {
@@ -111,10 +126,13 @@ async fn transcribe(key: &str, samples: &[f32]) -> Result<Outcome, ScribeError> 
     }
     let last_frame_sent = Instant::now();
     let transcript = session.finish().await;
+    let done = Instant::now();
+    let ready_at = ready.await.ok().flatten();
     Ok(Outcome {
         text: transcript.text,
-        connect_ms,
-        latency_ms: last_frame_sent.elapsed().as_millis(),
+        connect_ms: ready_at.map(|at| at.duration_since(pressed).as_millis()),
+        latency_ms: done.duration_since(last_frame_sent).as_millis(),
+        total_ms: done.duration_since(pressed).as_millis(),
         error: transcript.error,
     })
 }
@@ -158,6 +176,12 @@ fn summarise(rows: Vec<Row>) -> Summary {
     let connect_worst_ms = connects.iter().copied().max().unwrap_or(0);
     let latency_median_ms = median(&mut latencies);
     let connect_median_ms = median(&mut connects);
+    let mut extras: Vec<u128> = rows
+        .iter()
+        .filter_map(|r| r.total_ms.map(|t| t.saturating_sub(r.audio_ms)))
+        .collect();
+    let extra_over_audio_worst_ms = extras.iter().copied().max().unwrap_or(0);
+    let extra_over_audio_median_ms = median(&mut extras);
 
     for (lang, wer) in &by_lang {
         println!("mean WER {lang:<6} {:.1}%", wer * 100.0);
@@ -165,6 +189,9 @@ fn summarise(rows: Vec<Row>) -> Summary {
     println!("mean WER all    {:.1}%", mean_all * 100.0);
     println!("latency  median {latency_median_ms} ms, worst {latency_worst_ms} ms");
     println!("connect  median {connect_median_ms} ms, worst {connect_worst_ms} ms");
+    println!(
+        "key press to text minus clip length: median {extra_over_audio_median_ms} ms, worst {extra_over_audio_worst_ms} ms"
+    );
 
     Summary {
         params: format!(
@@ -178,6 +205,8 @@ fn summarise(rows: Vec<Row>) -> Summary {
         latency_worst_ms,
         connect_median_ms,
         connect_worst_ms,
+        extra_over_audio_median_ms,
+        extra_over_audio_worst_ms,
     }
 }
 
@@ -193,9 +222,7 @@ async fn long_hold(key: &str, clips: &[Clip]) {
             break;
         }
     }
-    let (mut session, mut events) = ScribeSession::connect(&Handle::current(), config(key))
-        .await
-        .expect("connect");
+    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config(key));
     let mut pace = interval(Duration::from_millis(16));
     for frame in samples.chunks(FRAME_SAMPLES) {
         pace.tick().await;
@@ -246,6 +273,7 @@ async fn main() {
     let mut rows = Vec::new();
     for clip in &clips {
         let samples = read_clip(&audio_dir().join(&clip.file));
+        let audio_ms = samples.len() as u128 * 1000 / 16_000;
         let result = transcribe(&key, &samples).await;
         let stop = matches!(&result, Err(e) if is_run_ending(e));
         let row = match result {
@@ -258,8 +286,10 @@ async fn main() {
                     hypothesis: outcome.text,
                     wer: Some(errors.rate()),
                     edits: Some(errors.edits),
-                    connect_ms: Some(outcome.connect_ms),
+                    audio_ms,
+                    connect_ms: outcome.connect_ms,
                     latency_ms: Some(outcome.latency_ms),
+                    total_ms: Some(outcome.total_ms),
                     error: outcome.error.map(|e| e.to_string()),
                 }
             }
@@ -270,17 +300,21 @@ async fn main() {
                 hypothesis: String::new(),
                 wer: None,
                 edits: None,
+                audio_ms,
                 connect_ms: None,
                 latency_ms: None,
+                total_ms: None,
                 error: Some(error.to_string()),
             },
         };
         println!(
-            "{:<9} wer {:>5}  connect {:>5} ms  finish {:>5} ms  {}",
+            "{:<9} wer {:>5}  audio {:>5} ms  connect {:>5} ms  finish {:>5} ms  total {:>5} ms  {}",
             row.id,
             row.wer.map_or("-".into(), |w| format!("{w:.2}")),
+            row.audio_ms,
             row.connect_ms.map_or("-".into(), |c| c.to_string()),
             row.latency_ms.map_or("-".into(), |l| l.to_string()),
+            row.total_ms.map_or("-".into(), |t| t.to_string()),
             row.error.as_deref().unwrap_or(&row.hypothesis),
         );
         rows.push(row);

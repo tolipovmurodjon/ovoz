@@ -88,20 +88,28 @@ impl fmt::Debug for ScribeConfig {
 /// dictionary should cost that entry, not the whole dictation, so extras are dropped.
 pub fn validate_keyterms(terms: &[String]) -> Vec<String> {
     let mut kept = Vec::new();
+    let (mut too_long, mut over_limit) = (0, 0);
     for term in terms {
         let term = term.trim();
         if term.is_empty() {
             continue;
         }
         if term.chars().count() > MAX_KEYTERM_CHARS {
-            log::warn!("dropping keyterm longer than {MAX_KEYTERM_CHARS} characters: {term}");
+            too_long += 1;
             continue;
         }
         if kept.len() == MAX_KEYTERMS {
-            log::warn!("dropping keyterm beyond the limit of {MAX_KEYTERMS}: {term}");
+            over_limit += 1;
             continue;
         }
         kept.push(term.to_string());
+    }
+    // Counts only: the words are the user's private dictionary and must not reach a log.
+    if too_long > 0 {
+        log::warn!("dropped {too_long} keyterms longer than {MAX_KEYTERM_CHARS} characters");
+    }
+    if over_limit > 0 {
+        log::warn!("dropped {over_limit} keyterms beyond the limit of {MAX_KEYTERMS}");
     }
     kept
 }

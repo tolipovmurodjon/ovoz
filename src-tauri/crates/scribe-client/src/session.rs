@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
@@ -24,18 +24,29 @@ type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// Audio goes out in 100 ms frames; the vendor asks for 0.1 to 1 s per chunk. Nothing
 /// larger is ever sent in one frame, so `chunk_size_exceeded` cannot happen.
 const CHUNK_SAMPLES: usize = 1600;
-/// The server ignores a commit with under 0.3 s of uncommitted audio and then closes the
-/// socket (measured: 0.20 s and 0.00 s both did). 0.325 s was accepted, so `finish` pads
-/// short tails with silence up to this.
+/// The server throttles a commit with under 0.3 s of uncommitted audio and then closes the
+/// socket (measured: 0.20 s and 0.00 s both did). 0.325 s was accepted, and audio inside
+/// the commit frame itself counts toward it (measured), so `finish` pads short tails with
+/// silence up to this.
 const MIN_COMMIT_SAMPLES: u64 = 5200;
-/// The server commits by itself at about 36 s of uncommitted audio. Past this much, an
-/// automatic commit may still be on its way when `finish` commits, and it arrives first.
+/// The server commits by itself at about 35.7 s of uncommitted audio (measured twice: the
+/// automatic commit arrived when 35.8 s had been sent; it counts audio seconds, not
+/// wall-clock time). Past this much, an automatic commit may still be on its way when
+/// `finish` commits, and it arrives first.
 const AUTO_COMMIT_RISK_SAMPLES: u64 = 33 * 16_000;
-/// Typical commit reply time is 350 ms, so a second frame is on the wire within this.
+/// At this much uncommitted audio (35.7 s) the automatic commit has certainly fired, so
+/// two commit replies are due, not one.
+const AUTO_COMMIT_SURE_SAMPLES: u64 = 571_200;
+/// When the automatic commit and ours collide, our reply follows theirs by 44 to 176 ms
+/// (measured), and a lone reply takes about 300 ms, so the second frame is on the wire
+/// well within this.
 const AUTO_COMMIT_GRACE: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScribeEvent {
+    /// The socket is open and the server has accepted the session. Audio fed before this
+    /// has been waiting in the queue and now starts to flow.
+    Ready,
     Partial(String),
     /// A finished segment. Long holds produce several before `finish`.
     Committed(String),
@@ -49,8 +60,8 @@ pub enum ScribeEvent {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Transcript {
     pub text: String,
-    /// Set when the final commit could not be completed: the text is then missing its
-    /// last stretch. `None` means the transcript is complete.
+    /// `Some` in every case where the text may be incomplete; `None` only when the text is
+    /// known to be complete. The caller should then fall back to its own recording.
     pub error: Option<ScribeError>,
 }
 
@@ -58,7 +69,13 @@ pub struct Transcript {
 /// arrives before `finish` starts waiting is still seen.
 #[derive(Debug, Default, Clone)]
 struct Progress {
+    /// The socket is open and `session_started` has arrived.
+    connected: bool,
     committed: Vec<String>,
+    /// Samples handed to `send_audio` when the latest committed segment arrived: a lower
+    /// bound of the audio the server has not committed yet. Lives here, next to
+    /// `committed`, so `finish` reads both in one consistent snapshot.
+    accepted_at_last_commit: u64,
     /// First fatal error. Sticky: the session is unusable once it is set.
     fatal: Option<ScribeError>,
     /// Latest non-fatal error and a counter, so `finish` reacts only to errors that
@@ -69,37 +86,55 @@ struct Progress {
     empty_replies: u64,
 }
 
-/// Sample counters the caller thread and the session task both read.
-#[derive(Default)]
-struct Shared {
-    /// Samples handed to `send_audio` so far.
-    accepted: AtomicU64,
-    /// `accepted` as it was when the latest committed segment arrived: a lower bound of
-    /// the audio the server has not committed yet.
-    accepted_at_last_commit: AtomicU64,
+impl Progress {
+    /// Server replies to commits since `since`: a transcript or "nothing to transcribe".
+    fn answers_since(&self, since: &Progress) -> usize {
+        (self.committed.len() - since.committed.len())
+            + (self.empty_replies - since.empty_replies) as usize
+    }
+
+    fn failure_since(&self, since: &Progress) -> Option<ScribeError> {
+        if self.error_seq > since.error_seq {
+            self.last_error.clone()
+        } else {
+            self.fatal.clone()
+        }
+    }
+
+    fn has_news_since(&self, since: &Progress) -> bool {
+        self.answers_since(since) > 0 || self.error_seq > since.error_seq || self.fatal.is_some()
+    }
 }
 
 pub struct ScribeSession {
     handle: Handle,
     frames: mpsc::UnboundedSender<String>,
     progress: watch::Receiver<Progress>,
-    shared: Arc<Shared>,
+    /// Samples handed to `send_audio` so far, shared with the session task.
+    shared_accepted: Arc<AtomicU64>,
     /// Samples not yet a full frame.
     pending: Vec<f32>,
     accepted: u64,
     previous_text: Option<String>,
+    started: Instant,
+    connect_timeout: Duration,
     finish_timeout: Duration,
     task: JoinHandle<()>,
 }
 
 impl ScribeSession {
-    /// Opens the websocket and waits for `session_started`, all within `connect_timeout`.
-    /// There is no retry: a failed connect is reported once and the caller decides.
+    /// Begins a session and returns at once without touching the network: call it at key
+    /// press. One task on `handle` connects (within `connect_timeout`, no retry) and then
+    /// runs the session. Audio passed to [`send_audio`](Self::send_audio) meanwhile waits
+    /// in the queue and goes out in order once the socket is up, so a short tap is not
+    /// cut by the half second the connection takes. [`ScribeEvent::Ready`] marks the
+    /// moment it is up. A connect failure (auth, timeout, network, an error frame before
+    /// `session_started`) is recorded as fatal: `send_audio` and `finish` both report it.
+    /// Dropping the session cancels a connect still in flight.
     ///
-    /// The session runs as a task spawned on `handle`, so that runtime must keep running
-    /// worker threads for as long as the session lives. A current-thread runtime that
-    /// only does `block_on(connect)` would upload nothing until `finish`. The calling
-    /// pattern for a plain `std::thread` (no runtime of its own) is:
+    /// The session runs as a task on `handle`, so that runtime must keep running worker
+    /// threads for as long as the session lives. The calling pattern for a plain
+    /// `std::thread` (no runtime of its own) is:
     ///
     /// ```no_run
     /// # use scribe_client::{ScribeConfig, ScribeSession};
@@ -110,69 +145,64 @@ impl ScribeSession {
     ///     .build()
     ///     .unwrap();
     ///
-    /// // On the worker thread, per hold:
+    /// // On the worker thread, per hold. At key press:
     /// # let key = String::new();
     /// # let frame = [0.0f32; 256];
     /// let (mut session, events) =
-    ///     ScribeSession::connect_blocking(runtime.handle(), ScribeConfig::new(key)).unwrap();
+    ///     ScribeSession::start(runtime.handle(), ScribeConfig::new(key));
     /// // `events` is a tokio unbounded receiver: `try_recv()` or `blocking_recv()` from std.
+    /// // While the key is held, for every frame the recorder delivers:
     /// while session.send_audio(&frame).is_ok() { /* until the key is released */ break; }
+    /// // At key release:
     /// let transcript = session.finish_blocking();
     /// println!("{} {:?}", transcript.text, transcript.error);
     /// ```
-    pub async fn connect(
+    pub fn start(
         handle: &Handle,
         config: ScribeConfig,
-    ) -> Result<(Self, mpsc::UnboundedReceiver<ScribeEvent>)> {
-        let socket = timeout(config.connect_timeout, open_socket(&config))
-            .await
-            .map_err(|_| ScribeError::Timeout("connecting"))??;
-
+    ) -> (Self, mpsc::UnboundedReceiver<ScribeEvent>) {
         let (frames, frame_rx) = mpsc::unbounded_channel();
         let (event_tx, events) = mpsc::unbounded_channel();
         let (progress_tx, progress) = watch::channel(Progress::default());
-        let shared = Arc::new(Shared::default());
-        let task = handle.spawn(run_session(
-            socket,
+        let shared_accepted = Arc::new(AtomicU64::new(0));
+        let previous_text = config.previous_text.clone();
+        let connect_timeout = config.connect_timeout;
+        let finish_timeout = config.finish_timeout;
+        let task = handle.spawn(run_task(
+            config,
             frame_rx,
             event_tx,
             progress_tx,
-            shared.clone(),
-            config.send_timeout,
+            shared_accepted.clone(),
         ));
 
         let session = Self {
             handle: handle.clone(),
             frames,
             progress,
-            shared,
+            shared_accepted,
             pending: Vec::new(),
             accepted: 0,
-            previous_text: config.previous_text,
-            finish_timeout: config.finish_timeout,
+            previous_text,
+            started: Instant::now(),
+            connect_timeout,
+            finish_timeout,
             task,
         };
-        Ok((session, events))
-    }
-
-    /// [`connect`](Self::connect) for a thread that is not inside a runtime. Panics if
-    /// called from async code; use `connect` there.
-    pub fn connect_blocking(
-        handle: &Handle,
-        config: ScribeConfig,
-    ) -> Result<(Self, mpsc::UnboundedReceiver<ScribeEvent>)> {
-        handle.block_on(Self::connect(handle, config))
+        (session, events)
     }
 
     /// Accepts f32 frames (16 kHz mono) of any size and never blocks. Samples are
     /// regrouped into 100 ms frames. Once the session is dead this returns the error
     /// that killed it, so the caller learns during the hold, not at the key release.
     pub fn send_audio(&mut self, samples: &[f32]) -> Result<()> {
+        // Counted even when the session is dead, so `finish` still reports the failure for
+        // audio the caller offered instead of returning a clean empty transcript.
+        self.accepted += samples.len() as u64;
+        self.shared_accepted.store(self.accepted, Ordering::Relaxed);
         if let Some(error) = self.progress.borrow().fatal.clone() {
             return Err(error);
         }
-        self.accepted += samples.len() as u64;
-        self.shared.accepted.store(self.accepted, Ordering::Relaxed);
         self.pending.extend_from_slice(samples);
 
         let whole = self.pending.len() / CHUNK_SAMPLES * CHUNK_SAMPLES;
@@ -190,19 +220,54 @@ impl ScribeSession {
     /// Commits the last stretch, waits for its transcript and returns every committed
     /// segment of the session joined with spaces. A hold that never sent audio returns
     /// empty text at once, without a round trip. Ends the session.
+    ///
+    /// `Transcript.error` is `Some` whenever the text may be incomplete: a failed
+    /// connect, a refused, failed or unanswered commit, a dead session, or an automatic
+    /// commit whose companion reply never came.
+    ///
+    /// Time budget: the commit round trip gets `finish_timeout`. A session that is still
+    /// connecting first waits for what remains of `connect_timeout`, counted from
+    /// [`start`](Self::start). A release with 33 to 36 s of uncommitted audio can cost up
+    /// to 500 ms more: the server's automatic commit may arrive first, so `finish` waits
+    /// for a second reply before it calls the transcript complete.
     pub async fn finish(mut self) -> Transcript {
         if self.accepted == 0 {
             return Transcript::default();
         }
+
+        let connect_left = self.connect_timeout.saturating_sub(self.started.elapsed());
+        let connected = timeout(
+            connect_left,
+            self.progress.wait_for(|p| p.connected || p.fatal.is_some()),
+        )
+        .await
+        .map(|reached| reached.map(|state| state.clone()));
+        match connected {
+            Err(_) => return self.transcript_with(ScribeError::Timeout("connecting")),
+            Ok(Ok(state)) => {
+                if let Some(fatal) = state.fatal {
+                    return self.transcript_with(fatal);
+                }
+            }
+            // The task is gone; queueing the commit below reports how it ended.
+            Ok(Err(_)) => {}
+        }
+
         let before = self.progress.borrow().clone();
-        let uncommitted = self
-            .accepted
-            .saturating_sub(self.shared.accepted_at_last_commit.load(Ordering::Relaxed));
+        let uncommitted = self.accepted.saturating_sub(before.accepted_at_last_commit);
         let auto_commit_may_be_in_flight = uncommitted >= AUTO_COMMIT_RISK_SAMPLES;
 
         let mut tail = std::mem::take(&mut self.pending);
-        let padding = MIN_COMMIT_SAMPLES.saturating_sub(uncommitted) as usize;
-        tail.resize(tail.len() + padding, 0.0);
+        // With an automatic commit possibly in flight, the server may already have taken
+        // everything before this frame, so the frame must be a valid commit on its own.
+        let counted = if auto_commit_may_be_in_flight {
+            tail.len() as u64
+        } else {
+            uncommitted
+        };
+        let padding = MIN_COMMIT_SAMPLES.saturating_sub(counted);
+        tail.resize(tail.len() + padding as usize, 0.0);
+        let second_reply_due = uncommitted + padding >= AUTO_COMMIT_SURE_SAMPLES;
         let commit = audio_chunk_json(
             &f32_to_pcm16_bytes(&tail),
             true,
@@ -212,43 +277,32 @@ impl ScribeSession {
             return self.transcript_with(error);
         }
 
-        let wait = self.progress.wait_for(|p| {
-            p.committed.len() > before.committed.len()
-                || p.error_seq > before.error_seq
-                || p.empty_replies > before.empty_replies
-                || p.fatal.is_some()
-        });
-        let waited = timeout(self.finish_timeout, wait)
-            .await
-            .map(|reached| reached.map(|state| state.clone()));
-        let mut state = match waited {
-            Ok(Ok(state)) => state,
-            Ok(Err(_)) => self.progress.borrow().clone(),
-            Err(_) => {
-                return self
-                    .transcript_with(ScribeError::Timeout("waiting for the final transcript"))
-            }
+        let Some(mut state) = self.wait_for_news(&before, self.finish_timeout).await else {
+            return self.transcript_with(ScribeError::Timeout("waiting for the final transcript"));
         };
-
-        if auto_commit_may_be_in_flight && state.committed.len() > before.committed.len() {
-            let seen = state.committed.len();
-            let more = self.progress.wait_for(|p| p.committed.len() > seen);
-            if let Ok(Ok(later)) = timeout(AUTO_COMMIT_GRACE, more)
-                .await
-                .map(|reached| reached.map(|state| state.clone()))
-            {
+        if auto_commit_may_be_in_flight
+            && state.answers_since(&before) == 1
+            && state.failure_since(&before).is_none()
+        {
+            let later = self.wait_for_news(&state, AUTO_COMMIT_GRACE).await;
+            if let Some(later) = later {
                 state = later;
             }
         }
 
-        let answered = state.committed.len() > before.committed.len()
-            || state.empty_replies > before.empty_replies;
-        let error = if answered {
+        let answers = state.answers_since(&before);
+        let failure = state.failure_since(&before);
+        let complete = answers >= 2 || (answers == 1 && !auto_commit_may_be_in_flight);
+        let error = if complete {
             None
-        } else if state.error_seq > before.error_seq {
-            state.last_error
+        } else if answers == 0 {
+            // Nothing answered and nothing failed: the task ended without saying why.
+            Some(failure.unwrap_or_else(session_task_ended))
         } else {
-            state.fatal
+            // One reply, and it may be the automatic commit with ours still missing.
+            failure.or(second_reply_due.then_some(ScribeError::Timeout(
+                "waiting for the commit after an automatic one",
+            )))
         };
         Transcript {
             text: join_segments(&state.committed),
@@ -263,6 +317,19 @@ impl ScribeSession {
         handle.block_on(self.finish())
     }
 
+    /// The state once something new happened since `since`, or `None` if `limit` passes
+    /// first. If the task has ended, returns the last state it left.
+    async fn wait_for_news(&mut self, since: &Progress, limit: Duration) -> Option<Progress> {
+        let waited = timeout(limit, self.progress.wait_for(|p| p.has_news_since(since)))
+            .await
+            .map(|reached| reached.map(|state| state.clone()));
+        match waited {
+            Ok(Ok(state)) => Some(state),
+            Ok(Err(_)) => Some(self.progress.borrow().clone()),
+            Err(_) => None,
+        }
+    }
+
     fn queue(&self, frame: String) -> Result<()> {
         self.frames.send(frame).map_err(|_| self.dead_error())
     }
@@ -272,10 +339,7 @@ impl ScribeSession {
             .borrow()
             .fatal
             .clone()
-            .unwrap_or(ScribeError::Closed {
-                code: 1006,
-                reason: "session task ended".into(),
-            })
+            .unwrap_or_else(session_task_ended)
     }
 
     fn transcript_with(&self, error: ScribeError) -> Transcript {
@@ -286,11 +350,19 @@ impl ScribeSession {
     }
 }
 
-/// Dropping a session stops everything at once: the task is aborted, the socket is
-/// closed without a handshake and audio still queued is never uploaded.
+/// Dropping a session stops everything at once: the task is aborted, a connect in flight
+/// is cancelled, the socket is closed without a handshake and audio still queued is never
+/// uploaded.
 impl Drop for ScribeSession {
     fn drop(&mut self) {
         self.task.abort();
+    }
+}
+
+fn session_task_ended() -> ScribeError {
+    ScribeError::Closed {
+        code: 1006,
+        reason: "session task ended".into(),
     }
 }
 
@@ -312,8 +384,11 @@ async fn open_socket(config: &ScribeConfig) -> Result<Socket> {
     let mut key = HeaderValue::from_str(&config.api_key).map_err(|_| {
         ScribeError::Auth("API key contains characters not allowed in a header".into())
     })?;
-    // tungstenite logs the whole upgrade request at trace level; a sensitive value
-    // prints as "Sensitive" there instead of the key.
+    // This only makes the value print as "Sensitive" through Debug. It does NOT keep the
+    // key out of logs: tungstenite's trace line prints the raw upgrade request anyway,
+    // and another trace line prints every received message (the transcript text). The
+    // only protection is that the host caps the `tungstenite` and `tokio_tungstenite`
+    // log targets at Info.
     key.set_sensitive(true);
     request.headers_mut().insert("xi-api-key", key);
 
@@ -367,12 +442,40 @@ fn closed_error(frame: Option<CloseFrame>) -> ScribeError {
     }
 }
 
+/// Connects, announces [`ScribeEvent::Ready`], then runs the session until it ends.
+async fn run_task(
+    config: ScribeConfig,
+    frames: mpsc::UnboundedReceiver<String>,
+    events: mpsc::UnboundedSender<ScribeEvent>,
+    progress: watch::Sender<Progress>,
+    accepted: Arc<AtomicU64>,
+) {
+    let socket = match timeout(config.connect_timeout, open_socket(&config)).await {
+        Ok(Ok(socket)) => socket,
+        // Whatever stopped the connect, the session is unusable: record it as fatal even
+        // for error kinds that are not fatal once a session runs.
+        Ok(Err(error)) => return record_fatal(&events, &progress, error),
+        Err(_) => return record_fatal(&events, &progress, ScribeError::Timeout("connecting")),
+    };
+    progress.send_modify(|p| p.connected = true);
+    let _ = events.send(ScribeEvent::Ready);
+    run_session(
+        socket,
+        frames,
+        &events,
+        &progress,
+        &accepted,
+        config.send_timeout,
+    )
+    .await;
+}
+
 async fn run_session(
     mut socket: Socket,
     mut frames: mpsc::UnboundedReceiver<String>,
-    events: mpsc::UnboundedSender<ScribeEvent>,
-    progress: watch::Sender<Progress>,
-    shared: Arc<Shared>,
+    events: &mpsc::UnboundedSender<ScribeEvent>,
+    progress: &watch::Sender<Progress>,
+    accepted: &AtomicU64,
     send_timeout: Duration,
 ) {
     let ended = loop {
@@ -389,7 +492,7 @@ async fn run_session(
             },
             incoming = socket.next() => match incoming {
                 Some(Ok(Message::Text(text))) => match parse_server_message(text.as_str()) {
-                    Ok(message) => handle_server_message(message, &events, &progress, &shared),
+                    Ok(message) => handle_server_message(message, events, progress, accepted),
                     Err(e) => log::warn!("unparseable scribe frame: {e}"),
                 },
                 Some(Ok(Message::Close(frame))) => break closed_error(frame),
@@ -399,7 +502,7 @@ async fn run_session(
             },
         }
     };
-    report_error(&events, &progress, ended);
+    report_error(events, progress, ended);
 }
 
 fn report_error(
@@ -407,33 +510,42 @@ fn report_error(
     progress: &watch::Sender<Progress>,
     error: ScribeError,
 ) {
+    if error.is_fatal() {
+        return record_fatal(events, progress, error);
+    }
     let _ = events.send(ScribeEvent::Error(error.clone()));
     progress.send_modify(|p| {
-        if error.is_fatal() {
-            // The first fatal error is the cause, later ones are fallout.
-            p.fatal = p.fatal.take().or(Some(error));
-        } else {
-            p.error_seq += 1;
-            p.last_error = Some(error);
-        }
+        p.error_seq += 1;
+        p.last_error = Some(error);
     });
+}
+
+fn record_fatal(
+    events: &mpsc::UnboundedSender<ScribeEvent>,
+    progress: &watch::Sender<Progress>,
+    error: ScribeError,
+) {
+    let _ = events.send(ScribeEvent::Error(error.clone()));
+    // The first fatal error is the cause, later ones are fallout.
+    progress.send_modify(|p| p.fatal = p.fatal.take().or(Some(error)));
 }
 
 fn handle_server_message(
     message: ServerMessage,
     events: &mpsc::UnboundedSender<ScribeEvent>,
     progress: &watch::Sender<Progress>,
-    shared: &Shared,
+    accepted: &AtomicU64,
 ) {
     match message {
         ServerMessage::Partial(text) => {
             let _ = events.send(ScribeEvent::Partial(text));
         }
         ServerMessage::Committed(text) => {
-            shared
-                .accepted_at_last_commit
-                .store(shared.accepted.load(Ordering::Relaxed), Ordering::Relaxed);
-            progress.send_modify(|p| p.committed.push(text.clone()));
+            let accepted_now = accepted.load(Ordering::Relaxed);
+            progress.send_modify(|p| {
+                p.accepted_at_last_commit = accepted_now;
+                p.committed.push(text.clone());
+            });
             let _ = events.send(ScribeEvent::Committed(text));
         }
         ServerMessage::Warning(text) => {
