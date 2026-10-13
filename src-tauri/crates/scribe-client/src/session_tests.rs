@@ -1,6 +1,8 @@
 //! The session state machine against an in-process mock server: no network, no API key.
 
 use std::future::pending;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::runtime::Handle;
@@ -176,7 +178,9 @@ async fn failed_final_commit_still_returns_the_text_committed_earlier() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn non_fatal_error_mid_hold_does_not_affect_a_good_final_commit() {
+async fn non_fatal_error_mid_hold_marks_the_transcript_as_possibly_incomplete() {
+    // The final commit is answered fine, but the server complained about audio earlier in
+    // the hold, so some of it may never have been transcribed.
     let server = MockServer::start(|mut conn| async move {
         let mut total = 0;
         let mut error_sent = false;
@@ -199,7 +203,10 @@ async fn non_fatal_error_mid_hold_does_not_affect_a_good_final_commit() {
     let transcript = session.finish().await;
 
     assert_eq!(transcript.text, "all good");
-    assert_eq!(transcript.error, None);
+    assert_eq!(
+        transcript.error,
+        Some(server_error("input_error", "bad frame"))
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -676,8 +683,16 @@ async fn an_error_frame_before_session_started_is_fatal_for_send_audio_and_finis
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn audio_fed_before_session_started_arrives_afterwards_complete_and_in_order() {
+    let early_frame = Arc::new(AtomicBool::new(false));
+    let saw_early_frame = early_frame.clone();
     let server = MockServer::start_silent(|mut conn| async move {
-        sleep(Duration::from_millis(300)).await;
+        // The client has audio queued but must not send it before the server says hello.
+        if timeout(Duration::from_millis(300), conn.recv())
+            .await
+            .is_ok()
+        {
+            saw_early_frame.store(true, Ordering::Relaxed);
+        }
         conn.send_session_started().await;
         while let Some(frame) = conn.recv().await {
             if is_commit(&frame) {
@@ -691,13 +706,16 @@ async fn audio_fed_before_session_started_arrives_afterwards_complete_and_in_ord
     for level in 1..=5 {
         session.send_audio(&vec![0.1 * level as f32; 1600]).unwrap();
     }
-    assert!(server.received.lock().unwrap().is_empty());
 
     // `finish` straight away: it has to wait for the connect, then commit after the audio.
     let transcript = session.finish().await;
 
     assert_eq!(transcript.text, "queued audio");
     assert_eq!(transcript.error, None);
+    assert!(
+        !early_frame.load(Ordering::Relaxed),
+        "a frame reached the server before session_started"
+    );
     let frames = server.received.lock().unwrap().clone();
     let levels: Vec<i16> = frames[..5].iter().map(first_sample).collect();
     assert!(
@@ -762,4 +780,117 @@ async fn a_task_that_dies_without_a_fatal_error_gives_an_error_not_a_clean_trans
         })
     );
     assert!(started.elapsed() < Duration::from_secs(1));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn second_auto_commit_cycle_with_a_late_reply_sets_an_error() {
+    // Cycle one: the server cuts at 35.7 s but its reply reaches the client only once 36.7 s
+    // have been fed, so the client's count of uncommitted audio runs 1 s short in cycle two.
+    // Cycle two: the release comes with 35.3 s counted, the real cut (35.7 s) has fired, and
+    // our own reply arrives after the grace. Without the lag cushion this looked complete.
+    let server = MockServer::start(|mut conn| async move {
+        let mut total = 0;
+        let mut first_sent = false;
+        while let Some(frame) = conn.recv().await {
+            total += samples_in(&frame);
+            if is_commit(&frame) {
+                conn.send(committed("second automatic")).await;
+                sleep(Duration::from_millis(800)).await;
+                conn.send(committed("tail")).await;
+            } else if total >= 587_200 && !first_sent {
+                first_sent = true;
+                conn.send(committed("first automatic")).await;
+            }
+        }
+    })
+    .await;
+    let (mut session, mut events) = open(&server).await;
+    feed(&mut session, 587_200);
+    wait_for(&mut events, |e| matches!(e, ScribeEvent::Committed(_))).await;
+    feed(&mut session, 564_800);
+
+    let started = Instant::now();
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "first automatic second automatic");
+    assert_eq!(
+        transcript.error,
+        Some(ScribeError::Timeout(
+            "waiting for the commit after an automatic one"
+        ))
+    );
+    assert!(started.elapsed() >= Duration::from_millis(450));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_normal_close_mid_hold_fails_the_next_send_and_finish_keeps_the_text() {
+    // The idle close the live server does: code 1000, so it must not read as a clean end.
+    let server = MockServer::start(|mut conn| async move {
+        let mut total = 0;
+        while let Some(frame) = conn.recv().await {
+            total += samples_in(&frame);
+            if total >= 16_000 {
+                conn.send(committed("so far")).await;
+                conn.close(1000, "normal closure").await;
+                break;
+            }
+        }
+        pending::<()>().await;
+    })
+    .await;
+    let (mut session, mut events) = open(&server).await;
+    feed(&mut session, 16_000);
+    wait_for(&mut events, |e| matches!(e, ScribeEvent::Committed(_))).await;
+
+    let closed = ScribeError::Closed {
+        code: 1000,
+        reason: "normal closure".into(),
+    };
+    let failure = timeout(Duration::from_secs(3), async {
+        loop {
+            if let Err(error) = session.send_audio(&[0.1; 256]) {
+                return error;
+            }
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the caller learns about the close during the hold");
+    assert_eq!(failure, closed);
+
+    let transcript = session.finish().await;
+    assert_eq!(transcript.text, "so far");
+    assert_eq!(transcript.error, Some(closed));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_idle_hold_sends_silence_that_counts_as_audio() {
+    let server = MockServer::start(|mut conn| async move {
+        while let Some(frame) = conn.recv().await {
+            if is_commit(&frame) {
+                conn.send(committed("after the pause")).await;
+            }
+        }
+    })
+    .await;
+    let mut config = config_for(&server);
+    config.idle_silence_after = Duration::from_millis(200);
+    let (mut session, _events) = open_with(config).await;
+    feed(&mut session, 3_200);
+    sleep(Duration::from_millis(750)).await;
+
+    let transcript = session.finish().await;
+
+    assert_eq!(transcript.text, "after the pause");
+    assert_eq!(transcript.error, None);
+    let frames = server.received.lock().unwrap().clone();
+    // Two speech frames, then at least two 100 ms silent frames, then the commit.
+    assert!(frames[..2].iter().all(|f| first_sample(f) != 0));
+    let silent: Vec<_> = frames[2..frames.len() - 1].iter().collect();
+    assert!(silent.len() >= 2, "{} silent frames", silent.len());
+    assert!(silent
+        .iter()
+        .all(|f| !is_commit(f) && samples_in(f) == 1600 && first_sample(f) == 0));
+    // The silence counted toward the server minimum, so the commit needed no padding.
+    assert_eq!(samples_in(frames.last().unwrap()), 0);
 }

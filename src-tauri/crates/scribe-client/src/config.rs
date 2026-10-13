@@ -17,13 +17,21 @@ pub struct ScribeConfig {
     pub no_verbatim: bool,
     /// Sent with the first audio chunk only, as the API requires.
     pub previous_text: Option<String>,
-    /// Covers the websocket handshake and the wait for `session_started`.
+    /// Covers the websocket handshake and the wait for `session_started`. Short on
+    /// purpose: the worst connect measured is 750 ms, and a dead network should make the
+    /// caller fall back to its own recording quickly.
     pub connect_timeout: Duration,
     /// How long `finish` waits for the server after the final commit.
     pub finish_timeout: Duration,
     /// A socket write that takes longer than this fails the session, so a dead
     /// network is noticed during the hold instead of at the key release.
     pub send_timeout: Duration,
+    /// Idle time after which the session sends 100 ms of silence. The server closes a
+    /// socket that gets no audio for about 15 s (measured 15.4 s, close code 1000), and the
+    /// `keepalive_interval_ms` URL parameter does not prevent it (measured with 500 and
+    /// 5000). A hold with a thinking pause sends nothing when the caller gates out silence.
+    /// A field only so tests can shorten it.
+    pub(crate) idle_silence_after: Duration,
     /// Replaces the production endpoint so tests can talk to a local server.
     pub(crate) endpoint: Option<String>,
 }
@@ -37,9 +45,10 @@ impl ScribeConfig {
             keyterms: Vec::new(),
             no_verbatim: false,
             previous_text: None,
-            connect_timeout: Duration::from_secs(5),
+            connect_timeout: Duration::from_secs(3),
             finish_timeout: Duration::from_secs(3),
             send_timeout: Duration::from_secs(3),
+            idle_silence_after: Duration::from_secs(8),
             endpoint: None,
         }
     }

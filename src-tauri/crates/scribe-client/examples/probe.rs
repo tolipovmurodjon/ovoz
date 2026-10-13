@@ -14,6 +14,14 @@
 //!   p3  speech at real-time pace until the first automatic commit arrives, then waits
 //!   p3:<s>  speech at real-time pace for <s> audio seconds, then a commit frame carrying
 //!       the next 0.325 s of speech: a manual commit racing the automatic one
+//!   k-idle        3 s of speech, then nothing for up to 40 s: when does the server hang up?
+//!   k-gap:<ms>    with `keepalive_interval_ms=<ms>` in the URL: 3 s of speech, 40 s of nothing,
+//!       3 s of different speech, commit. Does the socket survive, and is the text whole?
+//!       Measured 2026-10-14: with 500 and with 5000 it does nothing for an idle socket.
+//!   s-gap         the same gap through `ScribeSession` (which keeps the socket alive itself)
+//!   s-long        through `ScribeSession`: 30 s of speech, 20 s of nothing, 10 s of speech,
+//!       commit: does the automatic commit still land at about 35.7 s of audio?
+//! Ping, Pong and binary frames are printed too.
 //! Run from the crate folder with ELEVENLABS_API_KEY set:
 //!   cargo run --release --example probe -- a b p1
 
@@ -23,7 +31,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
-use scribe_client::f32_to_pcm16_bytes;
+use scribe_client::{f32_to_pcm16_bytes, ScribeConfig, ScribeSession};
+use tokio::runtime::Handle;
 use tokio::time::{interval, sleep, MissedTickBehavior};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
@@ -127,8 +136,71 @@ async fn main() {
     };
     for case in cases {
         println!("\n===== case {case} =====");
-        run(&case, &key).await;
+        if case.starts_with("s-") {
+            run_through_session(&case, &key).await;
+        } else {
+            run(&case, &key).await;
+        }
     }
+}
+
+/// Feeds `samples` to the session as 100 ms calls at real-time pace.
+async fn feed_session(session: &mut ScribeSession, clock: &Clock, samples: &[f32]) {
+    let mut pace = interval(Duration::from_millis(100));
+    pace.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    for chunk in samples.chunks(1600) {
+        pace.tick().await;
+        session.send_audio(chunk).expect("session alive");
+        clock.sent.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+    }
+}
+
+/// The same gaps as `k-gap` and the 30 s + 20 s + 10 s run, but through the real client, so
+/// its own silence keep-alive is what is being tested.
+async fn run_through_session(case: &str, key: &str) {
+    let clock = Clock {
+        t0: Instant::now(),
+        sent: Arc::new(AtomicU64::new(0)),
+    };
+    let mut config = ScribeConfig::new(key);
+    config.language_code = Some("uz".into());
+    config.secondary_languages = vec!["en".into()];
+    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config);
+    let event_clock = clock.clone();
+    let printer = tokio::spawn(async move {
+        while let Some(event) = events.recv().await {
+            event_clock.log(&format!("event {event:?}"));
+        }
+    });
+
+    let (first, gap, second): (Vec<f32>, u64, Vec<f32>) = match case {
+        "s-gap" => (
+            speech(3.0),
+            40,
+            read_clip("en-01.wav").into_iter().take(48_000).collect(),
+        ),
+        "s-long" => {
+            let audio = speech(40.0);
+            (audio[..480_000].to_vec(), 20, audio[480_000..].to_vec())
+        }
+        _ => return println!("unknown case"),
+    };
+    clock.log(&format!(
+        "-> {:.0} s of speech",
+        first.len() as f64 / 16_000.0
+    ));
+    feed_session(&mut session, &clock, &first).await;
+    clock.log(&format!("-> sending nothing for {gap} s"));
+    sleep(Duration::from_secs(gap)).await;
+    clock.log(&format!(
+        "-> {:.0} s of speech",
+        second.len() as f64 / 16_000.0
+    ));
+    feed_session(&mut session, &clock, &second).await;
+    clock.log("-> finish");
+    let transcript = session.finish().await;
+    clock.log(&format!("finish: {transcript:?}"));
+    printer.abort();
 }
 
 async fn run(case: &str, key: &str) {
@@ -136,7 +208,14 @@ async fn run(case: &str, key: &str) {
         t0: Instant::now(),
         sent: Arc::new(AtomicU64::new(0)),
     };
-    let mut request = URL.into_client_request().unwrap();
+    let keepalive_ms = case
+        .strip_prefix("k-gap:")
+        .map(|ms| ms.parse::<u32>().expect("keepalive milliseconds"));
+    let url = match keepalive_ms {
+        Some(ms) => format!("{URL}&keepalive_interval_ms={ms}"),
+        None => URL.to_string(),
+    };
+    let mut request = url.into_client_request().unwrap();
     let mut key = HeaderValue::from_str(key).unwrap();
     key.set_sensitive(true);
     request.headers_mut().insert("xi-api-key", key);
@@ -170,13 +249,23 @@ async fn run(case: &str, key: &str) {
                     reader_clock.log(&format!("<- CLOSE {frame:?}"));
                     break;
                 }
-                Ok(_) => {}
+                Ok(Message::Ping(payload)) => {
+                    reader_clock.log(&format!("<- PING {} bytes", payload.len()));
+                }
+                Ok(Message::Pong(payload)) => {
+                    reader_clock.log(&format!("<- PONG {} bytes", payload.len()));
+                }
+                Ok(Message::Binary(payload)) => {
+                    reader_clock.log(&format!("<- BINARY {} bytes", payload.len()));
+                }
+                Ok(Message::Frame(_)) => {}
                 Err(e) => {
                     reader_clock.log(&format!("<- ERR {e}"));
                     break;
                 }
             }
         }
+        reader_clock.log("<- stream ended");
     });
 
     // let session_started arrive
@@ -276,6 +365,25 @@ async fn run(case: &str, key: &str) {
             }
             clock.log("-> stopped; waiting 4 s for whatever else arrives");
             sleep(Duration::from_secs(4)).await;
+        }
+        "k-idle" => {
+            clock.log("-> 3 s of speech");
+            stream(&mut tx, &clock, &speech(3.0)).await;
+            clock.log("-> sending nothing for up to 40 s");
+            sleep(Duration::from_secs(40)).await;
+        }
+        other if other.starts_with("k-gap:") => {
+            clock.log("-> 3 s of speech");
+            stream(&mut tx, &clock, &speech(3.0)).await;
+            clock.log("-> sending nothing for 40 s");
+            sleep(Duration::from_secs(40)).await;
+            // Different words from the first half, so the text shows which halves arrived.
+            let second: Vec<f32> = read_clip("en-01.wav").into_iter().take(48_000).collect();
+            clock.log("-> 3 s of different speech");
+            stream(&mut tx, &clock, &second).await;
+            clock.log("-> commit");
+            send_audio(&mut tx, &clock, &[], true).await;
+            sleep(Duration::from_secs(6)).await;
         }
         other if other.starts_with("p3:") => {
             let stop: f64 = other[3..].parse().expect("p3:<audio seconds>");

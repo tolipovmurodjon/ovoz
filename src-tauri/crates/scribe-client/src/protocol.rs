@@ -42,9 +42,7 @@ pub fn f32_to_pcm16_bytes(samples: &[f32]) -> Vec<u8> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ServerMessage {
-    SessionStarted {
-        session_id: String,
-    },
+    SessionStarted,
     Partial(String),
     Committed(String),
     Warning(String),
@@ -67,9 +65,7 @@ pub(crate) fn parse_server_message(raw: &str) -> Result<ServerMessage, serde_jso
     };
     let kind = field("message_type");
     Ok(match kind.as_str() {
-        "session_started" => ServerMessage::SessionStarted {
-            session_id: field("session_id"),
-        },
+        "session_started" => ServerMessage::SessionStarted,
         "partial_transcript" => ServerMessage::Partial(field("text")),
         // The crate never asks for timestamps, so `committed_transcript_with_timestamps`
         // would only be a second copy of a segment already delivered.
@@ -125,12 +121,7 @@ mod tests {
             r#"{"message_type":"session_started","session_id":"s1","config":{"x":1}}"#,
         )
         .unwrap();
-        assert_eq!(
-            msg,
-            ServerMessage::SessionStarted {
-                session_id: "s1".into()
-            }
-        );
+        assert_eq!(msg, ServerMessage::SessionStarted);
     }
 
     #[test]
