@@ -15,6 +15,7 @@ use crate::settings::{
 };
 use anyhow::Result;
 use log::{debug, error, info, warn};
+use scribe_client::{PreviewText, ScribeConfig, ScribeSession};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -115,6 +116,10 @@ struct FinalizedStreamText {
     output_language: OutputLanguageEvidence,
     /// The streaming model's supported languages, for text-based detection.
     supported_languages: Vec<String>,
+    /// The engine already received the custom words (cloud keyterms), so the
+    /// fuzzy post-correction is skipped: its English Soundex match rewrites
+    /// short Uzbek words toward dictionary entries ("ham" -> "Humo").
+    custom_words_prompted: bool,
 }
 
 /// Routes real-time audio frames to the active streaming worker. Shared between
@@ -862,12 +867,95 @@ impl TranscriptionManager {
         thread::spawn(move || manager.run_stream_worker(rx, worker_id));
     }
 
+    /// Streams the hold to ElevenLabs Scribe instead of the local model. The app saves
+    /// the recording either way, so any problem is answered with `Ok(None)` and the
+    /// caller transcribes the same audio locally. Transcript text is never logged.
+    fn run_cloud_stream_worker(
+        &self,
+        rx: mpsc::Receiver<StreamCmd>,
+        api_key: String,
+        settings: &AppSettings,
+    ) {
+        let mut config = ScribeConfig::new(api_key);
+        config.language_code =
+            Some(settings.cloud_stt_language.clone()).filter(|language| !language.is_empty());
+        config.secondary_languages = settings.cloud_stt_secondary_languages.clone();
+        // The crate drops entries the API would reject, so the whole dictionary can go in.
+        config.keyterms = settings.custom_words.clone();
+
+        // The session task needs a multi-thread runtime. Tauri's default one is, and
+        // nothing in this app replaces it.
+        let runtime = tauri::async_runtime::handle();
+        let (mut session, mut events) = ScribeSession::start(runtime.inner(), config);
+        self.stream_active.store(true, Ordering::Release);
+        info!("Cloud streaming transcription started");
+
+        let mut preview = PreviewText::new();
+        let mut session_alive = true;
+        while let Ok(cmd) = rx.recv() {
+            match cmd {
+                StreamCmd::Feed(pcm) => {
+                    // The local model may be the fallback, so keep it from idling out.
+                    self.touch_activity();
+                    if session_alive {
+                        if let Err(e) = session.send_audio(&pcm) {
+                            // The app keeps recording, so only the sending stops.
+                            warn!("Cloud transcription stopped during the recording: {}", e);
+                            session_alive = false;
+                        }
+                    }
+                    let mut news = false;
+                    while let Ok(event) = events.try_recv() {
+                        preview.apply(&event);
+                        news = true;
+                    }
+                    if news {
+                        emit_stream_text(
+                            &self.app_handle,
+                            &preview.committed(),
+                            preview.tentative(),
+                        );
+                    }
+                }
+                StreamCmd::Finalize(reply) => {
+                    let transcript = session.finish_blocking();
+                    let result = match transcript.error {
+                        None => Ok(Some(FinalizedStreamText {
+                            text: transcript.text,
+                            // The server may mix the primary and secondary languages, so
+                            // none is claimed; text-based detection decides downstream.
+                            output_language: OutputLanguageEvidence::Unknown,
+                            supported_languages: Vec::new(),
+                            custom_words_prompted: true,
+                        })),
+                        Some(e) => {
+                            warn!("Cloud transcription failed ({}); using the local model", e);
+                            Ok(None)
+                        }
+                    };
+                    let _ = reply.send(result);
+                    return;
+                }
+                // Dropping the session aborts it and closes the socket.
+                StreamCmd::Cancel => return,
+            }
+        }
+    }
+
     fn run_stream_worker(&self, rx: mpsc::Receiver<StreamCmd>, worker_id: u64) {
         let _worker = StreamWorkerGuard {
             worker_id,
             active_stream_worker: Arc::clone(&self.active_stream_worker),
             stream_active: Arc::clone(&self.stream_active),
         };
+
+        // Cloud dictation replaces the local stream for this hold; the local model is
+        // only the fallback, so this runs before waiting for it to load.
+        let settings = get_settings(&self.app_handle);
+        if let Some(api_key) = settings.cloud_stt_api_key() {
+            self.run_cloud_stream_worker(rx, api_key, &settings);
+            return;
+        }
 
         // Wait for any in-progress model load to finish (start_stream races the
         // background load kicked off when recording starts).
@@ -1013,6 +1101,7 @@ impl TranscriptionManager {
                                 text: finalized.text.full,
                                 output_language,
                                 supported_languages: languages.clone(),
+                                custom_words_prompted: false,
                             }))
                         }
                         Ok(None) => {
@@ -1086,12 +1175,13 @@ impl TranscriptionManager {
         };
 
         let settings = get_settings(&self.app_handle);
-        // Streaming models do not receive a decode prompt, so custom words
-        // always go through the shared fuzzy post-correction path.
+        // Local streaming models do not receive a decode prompt, so their custom
+        // words go through the shared fuzzy post-correction path; the cloud
+        // engine got them as keyterms.
         let filtered = post_process_transcription_text(
             finalized.text,
             &settings,
-            false,
+            finalized.custom_words_prompted,
             &finalized.output_language,
             &finalized.supported_languages,
         );

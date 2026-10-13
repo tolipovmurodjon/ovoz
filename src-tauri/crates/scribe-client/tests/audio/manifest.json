@@ -1,0 +1,182 @@
+[
+  {
+    "id": "uz-01",
+    "lang": "uz",
+    "reference": "Bugun ertalab soat oltida uyg'ondim va bomdod namozini o'qidim.",
+    "file": "uz-01.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 4.24
+  },
+  {
+    "id": "uz-02",
+    "lang": "uz",
+    "reference": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
+    "file": "uz-02.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 3.76
+  },
+  {
+    "id": "uz-03",
+    "lang": "uz",
+    "reference": "Ertaga universitetda uchta darsim bor, keyin kutubxonaga boraman.",
+    "file": "uz-03.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 4
+  },
+  {
+    "id": "uz-04",
+    "lang": "uz",
+    "reference": "Iltimos, bu faylni saqlab qo'y va menga xabar yubor.",
+    "file": "uz-04.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 3.52
+  },
+  {
+    "id": "uz-05",
+    "lang": "uz",
+    "reference": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
+    "file": "uz-05.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 3.2
+  },
+  {
+    "id": "uz-06",
+    "lang": "uz",
+    "reference": "Men hozir Toshkentda yashayman, lekin oilam Farg'onada.",
+    "file": "uz-06.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 3.68
+  },
+  {
+    "id": "uz-07",
+    "lang": "uz",
+    "reference": "Bu hafta ichida loyihani tugatishimiz kerak.",
+    "file": "uz-07.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 2.48
+  },
+  {
+    "id": "en-01",
+    "lang": "en",
+    "reference": "Open the settings file and change the port to seven seven nine zero.",
+    "file": "en-01.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 4.32
+  },
+  {
+    "id": "en-02",
+    "lang": "en",
+    "reference": "I finished seventeen lectures today and built every one of them myself.",
+    "file": "en-02.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 4.24
+  },
+  {
+    "id": "en-03",
+    "lang": "en",
+    "reference": "Please commit this on a feature branch, push it, and open a pull request.",
+    "file": "en-03.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 4.32
+  },
+  {
+    "id": "en-04",
+    "lang": "en",
+    "reference": "The player controller should use the new input system, not the old one.",
+    "file": "en-04.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 4
+  },
+  {
+    "id": "en-05",
+    "lang": "en",
+    "reference": "Remind me to buy headphones tomorrow after the second class.",
+    "file": "en-05.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 3.36
+  },
+  {
+    "id": "en-06",
+    "lang": "en",
+    "reference": "This function returns null when the list is empty, so add a check.",
+    "file": "en-06.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 4.24
+  },
+  {
+    "id": "mixed-01",
+    "lang": "mixed",
+    "reference": "Bro, bugun Unity'da Cinemachine camerani setup qildim, juda zo'r ishladi.",
+    "file": "mixed-01.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 5.04
+  },
+  {
+    "id": "mixed-02",
+    "lang": "mixed",
+    "reference": "Dashboardni deploy qilib, keyin pull request och.",
+    "file": "mixed-02.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 3.2
+  },
+  {
+    "id": "mixed-03",
+    "lang": "mixed",
+    "reference": "ElevenLabs API key ni credential store ga saqla.",
+    "file": "mixed-03.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 3.68
+  },
+  {
+    "id": "mixed-04",
+    "lang": "mixed",
+    "reference": "Blender'da low poly modelni export qilib Unity'ga import qilaman.",
+    "file": "mixed-04.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 4.16
+  },
+  {
+    "id": "mixed-05",
+    "lang": "mixed",
+    "reference": "Humopedia web versiyasini beta ga push qildim, endi test qilish kerak.",
+    "file": "mixed-05.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 4.4
+  },
+  {
+    "id": "mixed-06",
+    "lang": "mixed",
+    "reference": "PAGEL serverda restart bo'ldi, logni tekshirib ko'r.",
+    "file": "mixed-06.wav",
+    "voice": "UjuEL3hLLUaDED9iW4Yb",
+    "model": "eleven_v4",
+    "seconds": 3.2
+  },
+  {
+    "id": "mixed-07",
+    "lang": "mixed",
+    "reference": "Shu bug ni fix qil, keyin test yoz va commit qil.",
+    "file": "mixed-07.wav",
+    "voice": "O72h9AUwisM6Zj4He72B",
+    "model": "eleven_v4",
+    "seconds": 3.6
+  }
+]

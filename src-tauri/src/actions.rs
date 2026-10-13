@@ -395,7 +395,11 @@ impl ShortcutAction for TranscribeAction {
 
         // Load ASR model and VAD model in parallel
         let kickoff_started = Instant::now();
-        tm.initiate_model_load();
+        // The cloud engine needs no local model in memory; it is loaded only if
+        // the cloud fails and the recording falls back to local transcription.
+        if get_settings(app).cloud_stt_api_key().is_none() {
+            tm.initiate_model_load();
+        }
         let rm_clone = Arc::clone(&rm);
         std::thread::spawn(move || {
             if let Err(e) = rm_clone.preload_vad() {
@@ -405,8 +409,10 @@ impl ShortcutAction for TranscribeAction {
         let kickoff_elapsed = kickoff_started.elapsed();
 
         // Don't open the mic if nothing can transcribe the recording; the load
-        // kicked off above fails and reports why.
-        if !tm.is_model_loaded() {
+        // kicked off above fails and reports why. The cloud engine needs no
+        // local model (without one, a cloud failure ends in the usual
+        // transcription error and the recording stays in history).
+        if !tm.is_model_loaded() && get_settings(app).cloud_stt_api_key().is_none() {
             let selected_model = get_settings(app).selected_model;
             if let Err(e) = app
                 .state::<Arc<ModelManager>>()
@@ -438,14 +444,17 @@ impl ShortcutAction for TranscribeAction {
             .as_ref()
             .map(|m| m.supports_streaming)
             .unwrap_or(false);
+        // Cloud dictation streams like a streaming model: the same longer VAD tail
+        // (the cloud session wants speech as it happens) and the same live overlay.
+        let streams_live = model_supports_streaming || settings.cloud_stt_api_key().is_some();
         let vad_policy = if !settings.vad_enabled {
             VadPolicy::Disabled
-        } else if model_supports_streaming {
+        } else if streams_live {
             VadPolicy::Streaming
         } else {
             VadPolicy::Offline
         };
-        if model_supports_streaming {
+        if streams_live {
             tm.start_stream();
         }
         let plan_elapsed = plan_started.elapsed();
@@ -455,7 +464,7 @@ impl ShortcutAction for TranscribeAction {
         // pill instead of an oversized transparent live window.
         let overlay_started = Instant::now();
         match settings.overlay_style {
-            OverlayStyle::Live if model_supports_streaming => utils::show_streaming_overlay(app),
+            OverlayStyle::Live if streams_live => utils::show_streaming_overlay(app),
             OverlayStyle::Live | OverlayStyle::Minimal => show_recording_overlay(app),
             OverlayStyle::None => {} // show_overlay_state no-ops on None anyway
         }
@@ -648,7 +657,12 @@ impl ShortcutAction for TranscribeAction {
                         // transcription of the same audio. A cancelled finalize is
                         // surfaced instead, so a cancel never starts a batch run.
                         Ok(Some(text)) if !text.trim().is_empty() => Ok(text),
-                        Ok(_) => tm.transcribe(samples),
+                        Ok(_) => {
+                            // No-op when the model is loaded or loading; after a
+                            // cloud failure this is where it first loads.
+                            tm.initiate_model_load();
+                            tm.transcribe(samples)
+                        }
                         Err(err) => Err(err),
                     };
 

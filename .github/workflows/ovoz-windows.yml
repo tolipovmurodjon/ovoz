@@ -1,0 +1,23 @@
+name: "Ovoz Windows build"
+
+# Unsigned Windows x64 installer for the fork. Runs by hand, or when a commit
+# on a feat/ branch has [build] in its message (a full build takes ~25 min).
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/**"]
+
+jobs:
+  windows:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build]')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      platform: "windows-latest"
+      target: "x86_64-pc-windows-msvc"
+      build-args: ""
+      sign-binaries: false
+      asset-prefix: "ovoz"
+      upload-artifacts: true
+    secrets: inherit

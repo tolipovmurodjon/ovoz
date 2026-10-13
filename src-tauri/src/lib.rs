@@ -798,6 +798,11 @@ pub fn run(cli_args: CliArgs) {
         .plugin(
             LogBuilder::new()
                 .level(log::LevelFilter::Trace) // Set to most verbose level globally
+                // At trace these crates print the websocket upgrade request, which
+                // carries the ElevenLabs API key header, and every received message,
+                // which is the user's dictated text. Cap them below trace.
+                .level_for("tungstenite", log::LevelFilter::Info)
+                .level_for("tokio_tungstenite", log::LevelFilter::Info)
                 .max_file_size(500_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .clear_targets()

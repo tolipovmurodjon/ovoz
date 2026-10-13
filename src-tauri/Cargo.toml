@@ -88,6 +88,8 @@ tauri-plugin-dialog = "2.6"
 hf-hub = { git = "https://github.com/cjpais/hf-hub", branch = "cancellable-downloads", features = [
   "tokio",
 ] }
+# ElevenLabs Scribe v2 Realtime client for cloud dictation.
+scribe-client = { path = "crates/scribe-client" }
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
