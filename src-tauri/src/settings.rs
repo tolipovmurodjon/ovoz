@@ -1058,6 +1058,16 @@ impl Default for AppSettings {
     }
 }
 
+/// The non-blank `ELEVENLABS_API_KEY` from the environment, trimmed. Split out
+/// of `cloud_stt_api_key` so the settings screen can report whether a key
+/// exists even while the cloud toggle is off.
+pub fn elevenlabs_api_key_from_env() -> Option<String> {
+    std::env::var("ELEVENLABS_API_KEY")
+        .ok()
+        .map(|key| key.trim().to_string())
+        .filter(|key| !key.is_empty())
+}
+
 impl AppSettings {
     /// The ElevenLabs key when the cloud path is on: the setting is enabled and
     /// `ELEVENLABS_API_KEY` holds a non-blank value. This is the one place that
@@ -1067,10 +1077,7 @@ impl AppSettings {
         if !self.cloud_stt_enabled {
             return None;
         }
-        std::env::var("ELEVENLABS_API_KEY")
-            .ok()
-            .map(|key| key.trim().to_string())
-            .filter(|key| !key.is_empty())
+        elevenlabs_api_key_from_env()
     }
 
     pub fn active_post_process_provider(&self) -> Option<&PostProcessProvider> {

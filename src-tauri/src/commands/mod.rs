@@ -4,7 +4,8 @@ pub mod models;
 pub mod transcription;
 
 use crate::settings::{
-    get_settings, update_checks_forced_disabled, write_settings, AppSettings, LogLevel,
+    elevenlabs_api_key_from_env, get_settings, update_checks_forced_disabled, write_settings,
+    AppSettings, LogLevel,
 };
 use crate::utils::cancel_current_operation;
 use tauri::{AppHandle, Manager};
@@ -26,6 +27,14 @@ pub fn is_portable() -> bool {
 #[specta::specta]
 pub fn is_update_checks_locked() -> bool {
     update_checks_forced_disabled()
+}
+
+/// Whether `ELEVENLABS_API_KEY` is set. Returns a bool only, so the key itself
+/// never crosses into the webview.
+#[tauri::command]
+#[specta::specta]
+pub fn is_cloud_stt_key_present() -> bool {
+    elevenlabs_api_key_from_env().is_some()
 }
 
 #[tauri::command]
