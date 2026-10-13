@@ -158,6 +158,28 @@
     "modelSettings": {
       "title": "Configuración de {{model}}"
     },
+    "cloudStt": {
+      "title": "Cloud transcription (ElevenLabs)",
+      "enabled": {
+        "label": "Use ElevenLabs cloud transcription",
+        "description": "Send your speech to ElevenLabs Scribe while you dictate. If the cloud is unavailable, the app uses the selected local model."
+      },
+      "keyStatus": {
+        "found": "API key found in ELEVENLABS_API_KEY",
+        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app"
+      },
+      "language": {
+        "title": "Main language",
+        "description": "Language code of what you mostly speak, for example uz. Leave empty to auto-detect, which is poor for Uzbek.",
+        "placeholder": "uz"
+      },
+      "secondaryLanguages": {
+        "title": "Other languages you mix in",
+        "description": "Comma-separated language codes you switch into, for example en, ru.",
+        "placeholder": "en, ru"
+      },
+      "fallbackNote": "When the cloud fails, the app falls back to the selected local model."
+    },
     "models": {
       "title": "Modelos de transcripción",
       "description": "Selecciona un modelo de transcripción o descarga modelos adicionales. Diferentes modelos ofrecen distintos niveles de precisión y velocidad.",

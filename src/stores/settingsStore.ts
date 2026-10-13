@@ -202,6 +202,12 @@ const settingUpdaters: {
     commands.changeTranscribeGpuDevice(value as string | null),
   extra_recording_buffer_ms: (value) =>
     commands.changeExtraRecordingBufferSetting(value as number),
+  cloud_stt_enabled: (value) =>
+    commands.changeCloudSttEnabledSetting(value as boolean),
+  cloud_stt_language: (value) =>
+    commands.changeCloudSttLanguageSetting(value as string),
+  cloud_stt_secondary_languages: (value) =>
+    commands.changeCloudSttSecondaryLanguagesSetting(value as string[]),
 };
 
 export const useSettingsStore = create<SettingsStore>()(
