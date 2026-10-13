@@ -657,6 +657,12 @@ impl ShortcutAction for TranscribeAction {
                         // transcription of the same audio. A cancelled finalize is
                         // surfaced instead, so a cancel never starts a batch run.
                         Ok(Some(text)) if !text.trim().is_empty() => Ok(text),
+                        // The cloud engine reports its failures as "no stream", so
+                        // an empty answer from it means nothing was said. A local
+                        // model run on that audio invents words from the noise.
+                        Ok(Some(text)) if get_settings(&ah).cloud_stt_api_key().is_some() => {
+                            Ok(text)
+                        }
                         Ok(_) => {
                             // No-op when the model is loaded or loading; after a
                             // cloud failure this is where it first loads.
