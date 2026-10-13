@@ -24,9 +24,9 @@ export const CloudTranscriptionCard: React.FC = () => {
   const [keyPresent, setKeyPresent] = useState<boolean | null>(null);
 
   const enabled = getSetting("cloud_stt_enabled") ?? true;
-  const language = getSetting("cloud_stt_language") ?? "uz";
+  const language = getSetting("cloud_stt_language") ?? "en";
   const secondaryLanguagesText = (
-    getSetting("cloud_stt_secondary_languages") ?? ["en"]
+    getSetting("cloud_stt_secondary_languages") ?? ["uz"]
   ).join(", ");
 
   // The inputs keep a draft and save on blur, so typing "en," does not get

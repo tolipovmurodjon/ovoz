@@ -651,13 +651,13 @@
       },
       "language": {
         "title": "Main language",
-        "description": "Language code of what you mostly speak, for example uz. Leave empty to auto-detect, which is poor for Uzbek.",
-        "placeholder": "uz"
+        "description": "Language code of what you mostly speak, for example en. Leave empty to auto-detect, which is poor for Uzbek.",
+        "placeholder": "en"
       },
       "secondaryLanguages": {
         "title": "Other languages you mix in",
-        "description": "Comma-separated language codes you switch into, for example en, ru.",
-        "placeholder": "en, ru"
+        "description": "Comma-separated language codes you switch into, for example uz, ru.",
+        "placeholder": "uz, ru"
       },
       "fallbackNote": "When the cloud fails, the app falls back to the selected local model."
     },

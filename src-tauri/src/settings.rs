@@ -623,11 +623,11 @@ fn default_cloud_stt_enabled() -> bool {
 }
 
 fn default_cloud_stt_language() -> String {
-    "uz".to_string()
+    "en".to_string()
 }
 
 fn default_cloud_stt_secondary_languages() -> Vec<String> {
-    vec!["en".to_string()]
+    vec!["uz".to_string()]
 }
 
 fn default_filler_word_removal_enabled() -> bool {

@@ -1,8 +1,9 @@
 //! Measures word error rate and latency of Scribe v2 Realtime on the clips in tests/audio,
-//! in the one configuration the app uses (Uzbek, English as second language, 12 keyterms).
+//! with the same 12 keyterms the app sends. The language setup defaults to Uzbek with English
+//! as second language; --language and --secondary pick another one.
 //!
 //! Run from the crate folder with ELEVENLABS_API_KEY set:
-//!   cargo run --release --example bench -- [--only uz-01,en-02]
+//!   cargo run --release --example bench -- [--only uz-01,en-02] [--language en --secondary uz]
 //!   cargo run --release --example bench -- --long    (one 60 s hold; does not write results.json)
 //!
 //! Audio is streamed in 256-sample (16 ms) frames at real-time pace, the way the app's
@@ -83,10 +84,40 @@ fn audio_dir() -> PathBuf {
         .join("audio")
 }
 
-fn config(key: &str) -> ScribeConfig {
+/// The language part of the configuration, so two setups can be compared on the same clips.
+struct Languages {
+    main: String,
+    secondary: Vec<String>,
+}
+
+impl Languages {
+    fn from_args(args: &[String]) -> Self {
+        let main = option_value(args, "--language").unwrap_or("uz").to_string();
+        let secondary = option_value(args, "--secondary")
+            .unwrap_or("en")
+            .split(',')
+            .filter(|code| !code.is_empty())
+            .map(str::to_string)
+            .collect();
+        Self { main, secondary }
+    }
+
+    fn is_default(&self) -> bool {
+        self.main == "uz" && self.secondary == ["en"]
+    }
+}
+
+fn option_value<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
+    args.iter()
+        .position(|a| a == name)
+        .and_then(|i| args.get(i + 1))
+        .map(String::as_str)
+}
+
+fn config(key: &str, languages: &Languages) -> ScribeConfig {
     let mut config = ScribeConfig::new(key);
-    config.language_code = Some("uz".into());
-    config.secondary_languages = vec!["en".into()];
+    config.language_code = Some(languages.main.clone()).filter(|code| !code.is_empty());
+    config.secondary_languages = languages.secondary.clone();
     config.keyterms = KEYTERMS.iter().map(|s| s.to_string()).collect();
     config
 }
@@ -107,9 +138,14 @@ struct Outcome {
     error: Option<ScribeError>,
 }
 
-async fn transcribe(key: &str, samples: &[f32]) -> Result<Outcome, ScribeError> {
+async fn transcribe(
+    key: &str,
+    languages: &Languages,
+    samples: &[f32],
+) -> Result<Outcome, ScribeError> {
     let pressed = Instant::now();
-    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config(key));
+    let (mut session, mut events) =
+        ScribeSession::start(&Handle::current(), config(key, languages));
     let ready = tokio::spawn(async move {
         while let Some(event) = events.recv().await {
             if event == ScribeEvent::Ready {
@@ -149,7 +185,7 @@ fn median(values: &mut [u128]) -> u128 {
     values.get(values.len() / 2).copied().unwrap_or(0)
 }
 
-fn summarise(rows: Vec<Row>) -> Summary {
+fn summarise(rows: Vec<Row>, languages: &Languages) -> Summary {
     let mut by_lang = Vec::new();
     for lang in ["uz", "en", "mixed"] {
         let wers: Vec<f64> = rows
@@ -195,7 +231,9 @@ fn summarise(rows: Vec<Row>) -> Summary {
 
     Summary {
         params: format!(
-            "language_code=uz secondary=[en] keyterms={}",
+            "language_code={} secondary={:?} keyterms={}",
+            languages.main,
+            languages.secondary,
             KEYTERMS.len()
         ),
         rows,
@@ -212,7 +250,7 @@ fn summarise(rows: Vec<Row>) -> Summary {
 
 /// Streams the first clips back to back as one 60 s hold, to see the server commit by itself
 /// partway through and `finish` join the segments.
-async fn long_hold(key: &str, clips: &[Clip]) {
+async fn long_hold(key: &str, languages: &Languages, clips: &[Clip]) {
     let mut samples = Vec::new();
     let mut reference = Vec::new();
     for clip in clips {
@@ -222,7 +260,8 @@ async fn long_hold(key: &str, clips: &[Clip]) {
             break;
         }
     }
-    let (mut session, mut events) = ScribeSession::start(&Handle::current(), config(key));
+    let (mut session, mut events) =
+        ScribeSession::start(&Handle::current(), config(key, languages));
     let mut pace = interval(Duration::from_millis(16));
     for frame in samples.chunks(FRAME_SAMPLES) {
         pace.tick().await;
@@ -252,11 +291,9 @@ async fn long_hold(key: &str, clips: &[Clip]) {
 async fn main() {
     let key = std::env::var("ELEVENLABS_API_KEY").expect("ELEVENLABS_API_KEY is not set");
     let args: Vec<String> = std::env::args().collect();
-    let only: Option<Vec<String>> = args
-        .iter()
-        .position(|a| a == "--only")
-        .and_then(|i| args.get(i + 1))
-        .map(|list| list.split(',').map(str::to_string).collect());
+    let only: Option<Vec<String>> =
+        option_value(&args, "--only").map(|list| list.split(',').map(str::to_string).collect());
+    let languages = Languages::from_args(&args);
 
     let manifest =
         std::fs::read_to_string(audio_dir().join("manifest.json")).expect("manifest.json");
@@ -266,7 +303,7 @@ async fn main() {
     }
 
     if args.iter().any(|a| a == "--long") {
-        long_hold(&key, &clips).await;
+        long_hold(&key, &languages, &clips).await;
         return;
     }
 
@@ -274,7 +311,7 @@ async fn main() {
     for clip in &clips {
         let samples = read_clip(&audio_dir().join(&clip.file));
         let audio_ms = samples.len() as u128 * 1000 / 16_000;
-        let result = transcribe(&key, &samples).await;
+        let result = transcribe(&key, &languages, &samples).await;
         let stop = matches!(&result, Err(e) if is_run_ending(e));
         let row = match result {
             Ok(outcome) => {
@@ -324,8 +361,14 @@ async fn main() {
         }
     }
 
-    let output = serde_json::json!({ "config": summarise(rows) });
-    let path = audio_dir().join("results.json");
+    let output = serde_json::json!({ "config": summarise(rows, &languages) });
+    // The default setup keeps the committed results.json; another one writes beside it.
+    let file = if languages.is_default() {
+        "results.json".to_string()
+    } else {
+        format!("results-{}.json", languages.main)
+    };
+    let path = audio_dir().join(file);
     std::fs::write(&path, serde_json::to_string_pretty(&output).unwrap() + "\n")
         .expect("write results");
     println!("saved {}", path.display());
