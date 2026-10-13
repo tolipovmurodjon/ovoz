@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Để bắt đầu, hãy chọn một mô hình chuyển đổi giọng nói",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Mô hình tương thích",
     "downloadModelsTitle": "Có sẵn để tải xuống",
     "showAllModels": "Hiển thị tất cả {{total}} mô hình",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Không thể chọn mô hình"
+      "selectModel": "Không thể chọn mô hình",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Cần cấp quyền",
@@ -126,6 +129,7 @@
     "active": "Đang hoạt động",
     "switching": "Đang chuyển...",
     "noModelsAvailable": "Không có mô hình nào",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Đang xác minh {{modelName}}...",
     "verifyingGeneric": "Đang xác minh...",
     "extracting": "Đang giải nén {{modelName}}...",

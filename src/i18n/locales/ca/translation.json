@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Per començar, trieu un model de transcripció",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Models compatibles",
     "downloadModelsTitle": "Disponibles per baixar",
     "showAllModels": "Mostra tots els {{total}} models",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "No s'ha pogut seleccionar el model"
+      "selectModel": "No s'ha pogut seleccionar el model",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Permisos necessaris",
@@ -127,6 +130,7 @@
     "active": "Actiu",
     "switching": "S'està canviant...",
     "noModelsAvailable": "No hi ha models disponibles",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "S'està verificant {{modelName}}...",
     "verifyingGeneric": "S'està verificant...",
     "extracting": "S'està extraient {{modelName}}...",

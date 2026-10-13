@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Aby rozpocząć, wybierz model transkrypcji",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Zgodne modele",
     "downloadModelsTitle": "Dostępne do pobrania",
     "showAllModels": "Pokaż wszystkie modele ({{total}})",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Nie udało się wybrać modelu"
+      "selectModel": "Nie udało się wybrać modelu",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Wymagane uprawnienia",
@@ -126,6 +129,7 @@
     "active": "Aktywny",
     "switching": "Przełączanie...",
     "noModelsAvailable": "Brak dostępnych modeli",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Weryfikacja {{modelName}}...",
     "verifyingGeneric": "Weryfikacja...",
     "extracting": "Rozpakowywanie {{modelName}}...",

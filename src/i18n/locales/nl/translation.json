@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Kies een transcriptiemodel om aan de slag te gaan",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Compatibele modellen",
     "downloadModelsTitle": "Beschikbaar voor download",
     "showAllModels": "Toon alle {{total}} modellen",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Model selecteren mislukt"
+      "selectModel": "Model selecteren mislukt",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Machtigingen vereist",
@@ -127,6 +130,7 @@
     "active": "Actief",
     "switching": "Wisselen...",
     "noModelsAvailable": "Geen modellen beschikbaar",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Verifiëren van {{modelName}}...",
     "verifyingGeneric": "Verifiëren...",
     "extracting": "Uitpakken van {{modelName}}...",

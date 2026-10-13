@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "За да започнете, изберете модел за транскрипция",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Съвместими модели",
     "downloadModelsTitle": "Достъпни за изтегляне",
     "showAllModels": "Показване на всички {{total}} модела",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Неуспешно избиране на модел"
+      "selectModel": "Неуспешно избиране на модел",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Необходими разрешения",
@@ -126,6 +129,7 @@
     "active": "Активен",
     "switching": "Превключване...",
     "noModelsAvailable": "Няма налични модели",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Проверка на {{modelName}}...",
     "verifyingGeneric": "Проверка...",
     "extracting": "Разархивиране на {{modelName}}...",

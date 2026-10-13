@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Pro začátek vyberte model pro přepis",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Kompatibilní modely",
     "downloadModelsTitle": "Dostupné ke stažení",
     "showAllModels": "Zobrazit všech {{total}} modelů",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Nepodařilo se vybrat model"
+      "selectModel": "Nepodařilo se vybrat model",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Vyžadována oprávnění",
@@ -125,6 +128,7 @@
     "streaming": "Streaming",
     "active": "Aktivní",
     "noModelsAvailable": "Nejsou dostupné žádné modely",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Ověřování {{modelName}}...",
     "verifyingGeneric": "Ověřování...",
     "extracting": "Rozbaluji {{modelName}}...",

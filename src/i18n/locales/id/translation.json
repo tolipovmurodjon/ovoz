@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Untuk memulai, pilih model transkripsi",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Model yang Kompatibel",
     "downloadModelsTitle": "Tersedia untuk Diunduh",
     "showAllModels": "Tampilkan semua {{total}} model",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Gagal memilih model"
+      "selectModel": "Gagal memilih model",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Izin Diperlukan",
@@ -127,6 +130,7 @@
     "active": "Aktif",
     "switching": "Beralih...",
     "noModelsAvailable": "Tidak ada model yang tersedia",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Memverifikasi {{modelName}}...",
     "verifyingGeneric": "Memverifikasi...",
     "extracting": "Mengekstrak {{modelName}}...",

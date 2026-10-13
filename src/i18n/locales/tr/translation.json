@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Başlamak için bir transkripsiyon modeli seçin",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Uyumlu Modeller",
     "downloadModelsTitle": "İndirilebilir",
     "showAllModels": "{{total}} modelin tümünü göster",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Model seçilemedi"
+      "selectModel": "Model seçilemedi",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "İzinler Gerekli",
@@ -125,6 +128,7 @@
     "streaming": "Akış",
     "active": "Aktif",
     "noModelsAvailable": "Kullanılabilir model yok",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "{{modelName}} doğrulanıyor...",
     "verifyingGeneric": "Doğrulanıyor...",
     "extracting": "{{modelName}} çıkarılıyor...",

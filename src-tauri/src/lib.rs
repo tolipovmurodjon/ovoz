@@ -724,6 +724,7 @@ pub fn run(cli_args: CliArgs) {
             commands::is_portable,
             commands::is_update_checks_locked,
             commands::is_cloud_stt_key_present,
+            commands::complete_onboarding_without_model,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,

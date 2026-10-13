@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "開始するには、文字起こしのモデルを選択してください",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "互換性のあるモデル",
     "downloadModelsTitle": "ダウンロード可能",
     "showAllModels": "すべての{{total}}個のモデルを表示",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "モデルの選択に失敗しました"
+      "selectModel": "モデルの選択に失敗しました",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "権限が必要です",
@@ -126,6 +129,7 @@
     "active": "アクティブ",
     "switching": "切替中…",
     "noModelsAvailable": "利用可能なモデルがありません",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "{{modelName}}を検証中…",
     "verifyingGeneric": "検証中…",
     "extracting": "{{modelName}}を展開中…",

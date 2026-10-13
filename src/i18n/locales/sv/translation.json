@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "För att komma igång, välj en transkriptionsmodell",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Kompatibla modeller",
     "downloadModelsTitle": "Tillgängliga för nedladdning",
     "showAllModels": "Visa alla {{total}} modeller",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Det gick inte att välja modell"
+      "selectModel": "Det gick inte att välja modell",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Behörigheter krävs",
@@ -126,6 +129,7 @@
     "active": "Aktiv",
     "switching": "Byter...",
     "noModelsAvailable": "Inga modeller tillgängliga",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Verifierar {{modelName}}...",
     "verifyingGeneric": "Verifierar...",
     "extracting": "Extraherar {{modelName}}...",

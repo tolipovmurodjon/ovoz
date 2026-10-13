@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "للبدء، اختر نموذج التفريغ الصوتي",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "النماذج المتوافقة",
     "downloadModelsTitle": "متاح للتنزيل",
     "showAllModels": "عرض كل النماذج ({{total}})",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "فشل تحديد النموذج"
+      "selectModel": "فشل تحديد النموذج",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "الأذونات المطلوبة",
@@ -125,6 +128,7 @@
     "streaming": "البث",
     "active": "نشط",
     "noModelsAvailable": "لا توجد نماذج متاحة",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "جارٍ التحقق من {{modelName}}...",
     "verifyingGeneric": "جارٍ التحقق...",
     "extracting": "جاري استخراج {{modelName}}...",

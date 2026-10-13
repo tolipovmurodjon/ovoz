@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "请选择一个转录模型以开始使用",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "兼容的模型",
     "downloadModelsTitle": "可供下载",
     "showAllModels": "显示全部 {{total}} 个模型",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "选择模型失败"
+      "selectModel": "选择模型失败",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "需要权限",
@@ -126,6 +129,7 @@
     "active": "活跃",
     "switching": "切换中...",
     "noModelsAvailable": "没有可用的模型",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "正在验证 {{modelName}}...",
     "verifyingGeneric": "正在验证...",
     "extracting": "正在解压 {{modelName}}...",

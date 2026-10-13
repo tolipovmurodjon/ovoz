@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Per cominciare, scegli un modello di riconoscimento vocale",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Modelli compatibili",
     "downloadModelsTitle": "Disponibile per il download",
     "showAllModels": "Mostra tutti e {{total}} modelli",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Impossibile selezionare il modello"
+      "selectModel": "Impossibile selezionare il modello",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Permessi Richiesti",
@@ -126,6 +129,7 @@
     "active": "Attivo",
     "switching": "Cambio...",
     "noModelsAvailable": "Nessun modello disponibile",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Verifica di {{modelName}}...",
     "verifyingGeneric": "Verifica...",
     "extracting": "Estrazione di {{modelName}}...",

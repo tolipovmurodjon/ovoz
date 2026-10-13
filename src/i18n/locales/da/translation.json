@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "For at komme i gang skal du vælge en transskriptionsmodel",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Kompatible modeller",
     "downloadModelsTitle": "Tilgængelig til download",
     "showAllModels": "Vis alle {{total}} modeller",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Kunne ikke vælge model"
+      "selectModel": "Kunne ikke vælge model",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Tilladelser påkrævet",
@@ -127,6 +130,7 @@
     "active": "Aktiv",
     "switching": "Skifter...",
     "noModelsAvailable": "Ingen modeller tilgængelige",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Verificerer {{modelName}}...",
     "verifyingGeneric": "Verificerer...",
     "extracting": "Udpakker {{modelName}}...",

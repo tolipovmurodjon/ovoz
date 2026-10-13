@@ -583,6 +583,19 @@ async isUpdateChecksLocked() : Promise<boolean> {
 async isCloudSttKeyPresent() : Promise<boolean> {
     return await TAURI_INVOKE("is_cloud_stt_key_present");
 },
+/**
+ * Ends onboarding without a local model, for users who dictate through the
+ * cloud engine. Refuses when there is no key, because then nothing could
+ * transcribe and the user would land in an app that cannot record.
+ */
+async completeOnboardingWithoutModel() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("complete_onboarding_without_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_app_dir_path") };

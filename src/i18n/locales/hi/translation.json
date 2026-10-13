@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "शुरू करने के लिए, एक ट्रांसक्रिप्शन मॉडल चुनें",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "संगत मॉडल",
     "downloadModelsTitle": "डाउनलोड के लिए उपलब्ध",
     "showAllModels": "सभी {{total}} मॉडल दिखाएं",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "मॉडल चुना नहीं जा सका"
+      "selectModel": "मॉडल चुना नहीं जा सका",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "अनुमतियों की ज़रूरत है",
@@ -127,6 +130,7 @@
     "active": "इस्तेमाल में",
     "switching": "बदला जा रहा है...",
     "noModelsAvailable": "कोई मॉडल उपलब्ध नहीं है",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "{{modelName}} की पुष्टि हो रही है...",
     "verifyingGeneric": "पुष्टि हो रही है...",
     "extracting": "{{modelName}} एक्सट्रैक्ट हो रहा है...",

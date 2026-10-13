@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "כדי להתחיל, בחר מודל תמלול",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "מודלים תואמים",
     "downloadModelsTitle": "זמינים להורדה",
     "showAllModels": "הצג את כל {{total}} המודלים",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "בחירת המודל נכשלה"
+      "selectModel": "בחירת המודל נכשלה",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "נדרשות הרשאות",
@@ -126,6 +129,7 @@
     "active": "פעיל",
     "switching": "מחליף...",
     "noModelsAvailable": "אין מודלים זמינים",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "מאמת את {{modelName}}...",
     "verifyingGeneric": "מאמת...",
     "extracting": "מחלץ את {{modelName}}...",

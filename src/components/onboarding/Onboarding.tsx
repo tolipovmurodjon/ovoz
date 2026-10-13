@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
-import type { ModelInfo } from "@/bindings";
+import { commands, type ModelInfo } from "@/bindings";
 import type { ModelCardStatus } from "./ModelCard";
 import ModelCard, { isLegacySource } from "./ModelCard";
 import HandyTextLogo from "../icons/HandyTextLogo";
 import { useModelStore } from "../../stores/modelStore";
+import { Button } from "../ui/Button";
 
 interface OnboardingProps {
   onModelSelected: () => void;
@@ -32,6 +33,18 @@ const Onboarding: React.FC<OnboardingProps> = ({
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const hasStartedSelection = useRef(false);
+  // The ElevenLabs key comes from an environment variable, so one check on
+  // mount is enough. With a key, a local model is optional.
+  const [cloudKeyPresent, setCloudKeyPresent] = useState(false);
+
+  useEffect(() => {
+    commands
+      .isCloudSttKeyPresent()
+      .then(setCloudKeyPresent)
+      .catch((error) =>
+        console.error("Failed to check the ElevenLabs key:", error),
+      );
+  }, []);
 
   const isBusy = selectedModelId !== null;
 
@@ -124,6 +137,17 @@ const Onboarding: React.FC<OnboardingProps> = ({
     }
   };
 
+  const handleContinueWithCloud = async () => {
+    if (preview) return;
+
+    const result = await commands.completeOnboardingWithoutModel();
+    if (result.status === "ok") {
+      onModelSelected();
+    } else {
+      toast.error(t("onboarding.errors.continueWithCloud"));
+    }
+  };
+
   const handleCancelDownload = async (modelId: string) => {
     if (preview) return;
 
@@ -170,6 +194,23 @@ const Onboarding: React.FC<OnboardingProps> = ({
 
       <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
         <div className="space-y-6 pb-6">
+          {cloudKeyPresent && (
+            <div className="space-y-2">
+              <Button
+                variant="primary-soft"
+                size="lg"
+                className="w-full"
+                disabled={isBusy}
+                onClick={handleContinueWithCloud}
+              >
+                {t("onboarding.continueWithCloud")}
+              </Button>
+              <p className="text-sm text-text/60">
+                {t("onboarding.continueWithCloudHint")}
+              </p>
+            </div>
+          )}
+
           {models.some((m: ModelInfo) => m.is_downloaded) && (
             <div className="space-y-3">
               <div className="text-left">

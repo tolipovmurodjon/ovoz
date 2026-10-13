@@ -37,6 +37,21 @@ pub fn is_cloud_stt_key_present() -> bool {
     elevenlabs_api_key_from_env().is_some()
 }
 
+/// Ends onboarding without a local model, for users who dictate through the
+/// cloud engine. Refuses when there is no key, because then nothing could
+/// transcribe and the user would land in an app that cannot record.
+#[tauri::command]
+#[specta::specta]
+pub fn complete_onboarding_without_model(app: AppHandle) -> Result<(), String> {
+    if elevenlabs_api_key_from_env().is_none() {
+        return Err("ELEVENLABS_API_KEY is not set".to_string());
+    }
+    let mut settings = get_settings(&app);
+    settings.onboarding_completed = true;
+    write_settings(&app, settings);
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn get_app_dir_path(app: AppHandle) -> Result<String, String> {

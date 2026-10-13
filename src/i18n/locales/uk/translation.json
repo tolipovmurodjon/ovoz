@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Для початку оберіть модель транскрипції",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Сумісні моделі",
     "downloadModelsTitle": "Доступні для завантаження",
     "showAllModels": "Показати всі моделі ({{total}})",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Не вдалося вибрати модель"
+      "selectModel": "Не вдалося вибрати модель",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Потрібні дозволи",
@@ -125,6 +128,7 @@
     "streaming": "Потокове",
     "active": "Активна",
     "noModelsAvailable": "Немає доступних моделей",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Перевірка {{modelName}}...",
     "verifyingGeneric": "Перевірка...",
     "extracting": "Розпакування {{modelName}}...",
