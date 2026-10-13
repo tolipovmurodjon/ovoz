@@ -116,6 +116,10 @@ struct FinalizedStreamText {
     output_language: OutputLanguageEvidence,
     /// The streaming model's supported languages, for text-based detection.
     supported_languages: Vec<String>,
+    /// The engine already received the custom words (cloud keyterms), so the
+    /// fuzzy post-correction is skipped: its English Soundex match rewrites
+    /// short Uzbek words toward dictionary entries ("ham" -> "Humo").
+    custom_words_prompted: bool,
 }
 
 /// Routes real-time audio frames to the active streaming worker. Shared between
@@ -922,6 +926,7 @@ impl TranscriptionManager {
                             // none is claimed; text-based detection decides downstream.
                             output_language: OutputLanguageEvidence::Unknown,
                             supported_languages: Vec::new(),
+                            custom_words_prompted: true,
                         })),
                         Some(e) => {
                             warn!("Cloud transcription failed ({}); using the local model", e);
@@ -1096,6 +1101,7 @@ impl TranscriptionManager {
                                 text: finalized.text.full,
                                 output_language,
                                 supported_languages: languages.clone(),
+                                custom_words_prompted: false,
                             }))
                         }
                         Ok(None) => {
@@ -1169,12 +1175,13 @@ impl TranscriptionManager {
         };
 
         let settings = get_settings(&self.app_handle);
-        // Streaming models do not receive a decode prompt, so custom words
-        // always go through the shared fuzzy post-correction path.
+        // Local streaming models do not receive a decode prompt, so their custom
+        // words go through the shared fuzzy post-correction path; the cloud
+        // engine got them as keyterms.
         let filtered = post_process_transcription_text(
             finalized.text,
             &settings,
-            false,
+            finalized.custom_words_prompted,
             &finalized.output_language,
             &finalized.supported_languages,
         );

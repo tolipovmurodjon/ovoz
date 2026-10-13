@@ -405,8 +405,10 @@ impl ShortcutAction for TranscribeAction {
         let kickoff_elapsed = kickoff_started.elapsed();
 
         // Don't open the mic if nothing can transcribe the recording; the load
-        // kicked off above fails and reports why.
-        if !tm.is_model_loaded() {
+        // kicked off above fails and reports why. The cloud engine needs no
+        // local model (without one, a cloud failure ends in the usual
+        // transcription error and the recording stays in history).
+        if !tm.is_model_loaded() && get_settings(app).cloud_stt_api_key().is_none() {
             let selected_model = get_settings(app).selected_model;
             if let Err(e) = app
                 .state::<Arc<ModelManager>>()
