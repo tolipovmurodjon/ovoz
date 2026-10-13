@@ -9,11 +9,13 @@ import { Input } from "../../ui/Input";
 
 const normalizeLanguageCode = (text: string) => text.trim().toLowerCase();
 
-const parseLanguageList = (text: string) =>
-  text
-    .split(",")
-    .map(normalizeLanguageCode)
-    .filter((code) => code.length > 0);
+// ISO 639-1 or 639-3. A typo like "uzbek" would be rejected by the server on
+// every dictation, which silently turns the cloud engine off.
+const isLanguageCode = (code: string) => /^[a-z]{2,3}$/.test(code);
+
+const parseLanguageList = (text: string) => [
+  ...new Set(text.split(",").map(normalizeLanguageCode).filter(isLanguageCode)),
+];
 
 export const CloudTranscriptionCard: React.FC = () => {
   const { t } = useTranslation();
@@ -51,6 +53,11 @@ export const CloudTranscriptionCard: React.FC = () => {
 
   const saveLanguage = () => {
     const normalized = normalizeLanguageCode(languageDraft);
+    // Empty means auto-detect; anything else must be a real code.
+    if (normalized !== "" && !isLanguageCode(normalized)) {
+      setLanguageDraft(language);
+      return;
+    }
     setLanguageDraft(normalized);
     if (normalized !== language) {
       updateSetting("cloud_stt_language", normalized);
