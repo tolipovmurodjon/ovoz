@@ -395,7 +395,11 @@ impl ShortcutAction for TranscribeAction {
 
         // Load ASR model and VAD model in parallel
         let kickoff_started = Instant::now();
-        tm.initiate_model_load();
+        // The cloud engine needs no local model in memory; it is loaded only if
+        // the cloud fails and the recording falls back to local transcription.
+        if get_settings(app).cloud_stt_api_key().is_none() {
+            tm.initiate_model_load();
+        }
         let rm_clone = Arc::clone(&rm);
         std::thread::spawn(move || {
             if let Err(e) = rm_clone.preload_vad() {
@@ -653,7 +657,12 @@ impl ShortcutAction for TranscribeAction {
                         // transcription of the same audio. A cancelled finalize is
                         // surfaced instead, so a cancel never starts a batch run.
                         Ok(Some(text)) if !text.trim().is_empty() => Ok(text),
-                        Ok(_) => tm.transcribe(samples),
+                        Ok(_) => {
+                            // No-op when the model is loaded or loading; after a
+                            // cloud failure this is where it first loads.
+                            tm.initiate_model_load();
+                            tm.transcribe(samples)
+                        }
                         Err(err) => Err(err),
                     };
 
