@@ -438,14 +438,17 @@ impl ShortcutAction for TranscribeAction {
             .as_ref()
             .map(|m| m.supports_streaming)
             .unwrap_or(false);
+        // Cloud dictation streams like a streaming model: the same longer VAD tail
+        // (the cloud session wants speech as it happens) and the same live overlay.
+        let streams_live = model_supports_streaming || settings.cloud_stt_api_key().is_some();
         let vad_policy = if !settings.vad_enabled {
             VadPolicy::Disabled
-        } else if model_supports_streaming {
+        } else if streams_live {
             VadPolicy::Streaming
         } else {
             VadPolicy::Offline
         };
-        if model_supports_streaming {
+        if streams_live {
             tm.start_stream();
         }
         let plan_elapsed = plan_started.elapsed();
@@ -455,7 +458,7 @@ impl ShortcutAction for TranscribeAction {
         // pill instead of an oversized transparent live window.
         let overlay_started = Instant::now();
         match settings.overlay_style {
-            OverlayStyle::Live if model_supports_streaming => utils::show_streaming_overlay(app),
+            OverlayStyle::Live if streams_live => utils::show_streaming_overlay(app),
             OverlayStyle::Live | OverlayStyle::Minimal => show_recording_overlay(app),
             OverlayStyle::None => {} // show_overlay_state no-ops on None anyway
         }

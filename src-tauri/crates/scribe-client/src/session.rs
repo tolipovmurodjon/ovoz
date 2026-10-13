@@ -388,7 +388,7 @@ fn session_task_ended() -> ScribeError {
     }
 }
 
-fn join_segments(segments: &[String]) -> String {
+pub(crate) fn join_segments(segments: &[String]) -> String {
     segments
         .iter()
         .map(|s| s.trim())

@@ -23,6 +23,7 @@ mod config;
 mod error;
 #[cfg(test)]
 mod mock_server;
+mod preview;
 mod protocol;
 mod session;
 #[cfg(test)]
@@ -30,5 +31,6 @@ mod session_tests;
 
 pub use config::{validate_keyterms, ScribeConfig};
 pub use error::{Result, ScribeError};
+pub use preview::PreviewText;
 pub use protocol::f32_to_pcm16_bytes;
 pub use session::{ScribeEvent, ScribeSession, Transcript};

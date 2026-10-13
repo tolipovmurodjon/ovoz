@@ -544,6 +544,14 @@ pub struct AppSettings {
     /// `overlay_position` (position `none` → style `None`).
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
+    /// Stream dictation to ElevenLabs Scribe when `ELEVENLABS_API_KEY` is set;
+    /// without a key this has no effect. The local model stays the fallback.
+    #[serde(default = "default_cloud_stt_enabled")]
+    pub cloud_stt_enabled: bool,
+    #[serde(default = "default_cloud_stt_language")]
+    pub cloud_stt_language: String,
+    #[serde(default = "default_cloud_stt_secondary_languages")]
+    pub cloud_stt_secondary_languages: Vec<String>,
 }
 
 fn default_model() -> String {
@@ -609,6 +617,18 @@ fn default_overlay_style() -> OverlayStyle {
 
 fn default_vad_enabled() -> bool {
     true
+}
+
+fn default_cloud_stt_enabled() -> bool {
+    true
+}
+
+fn default_cloud_stt_language() -> String {
+    "uz".to_string()
+}
+
+fn default_cloud_stt_secondary_languages() -> Vec<String> {
+    vec!["en".to_string()]
 }
 
 fn default_filler_word_removal_enabled() -> bool {
@@ -1027,6 +1047,9 @@ pub fn get_default_settings() -> AppSettings {
         vad_enabled: default_vad_enabled(),
         vad_backend: VadBackend::default(),
         overlay_style: default_overlay_style(),
+        cloud_stt_enabled: default_cloud_stt_enabled(),
+        cloud_stt_language: default_cloud_stt_language(),
+        cloud_stt_secondary_languages: default_cloud_stt_secondary_languages(),
     }
 }
 
@@ -1037,6 +1060,20 @@ impl Default for AppSettings {
 }
 
 impl AppSettings {
+    /// The ElevenLabs key when the cloud path is on: the setting is enabled and
+    /// `ELEVENLABS_API_KEY` holds a non-blank value. This is the one place that
+    /// decides, so recording start and the stream worker cannot disagree. The key
+    /// is read from the environment on each call and never stored or logged.
+    pub fn cloud_stt_api_key(&self) -> Option<String> {
+        if !self.cloud_stt_enabled {
+            return None;
+        }
+        std::env::var("ELEVENLABS_API_KEY")
+            .ok()
+            .map(|key| key.trim().to_string())
+            .filter(|key| !key.is_empty())
+    }
+
     pub fn active_post_process_provider(&self) -> Option<&PostProcessProvider> {
         self.post_process_providers
             .iter()
