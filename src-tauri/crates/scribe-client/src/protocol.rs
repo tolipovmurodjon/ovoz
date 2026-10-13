@@ -5,23 +5,6 @@ use serde_json::Value;
 
 pub(crate) const SAMPLE_RATE: u32 = 16_000;
 
-const ERROR_TYPES: &[&str] = &[
-    "error",
-    "auth_error",
-    "quota_exceeded",
-    "commit_throttled",
-    "unaccepted_terms",
-    "rate_limited",
-    "queue_overflow",
-    "resource_exhausted",
-    "session_time_limit_exceeded",
-    "input_error",
-    "invalid_request",
-    "chunk_size_exceeded",
-    "insufficient_audio_activity",
-    "transcriber_error",
-];
-
 #[derive(Serialize)]
 struct AudioChunk<'a> {
     message_type: &'static str,
@@ -57,10 +40,6 @@ pub fn f32_to_pcm16_bytes(samples: &[f32]) -> Vec<u8> {
     bytes
 }
 
-pub(crate) fn i16_to_pcm16_bytes(samples: &[i16]) -> Vec<u8> {
-    samples.iter().flat_map(|s| s.to_le_bytes()).collect()
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ServerMessage {
     SessionStarted {
@@ -68,10 +47,6 @@ pub(crate) enum ServerMessage {
     },
     Partial(String),
     Committed(String),
-    Edited {
-        text: String,
-        edited: String,
-    },
     Warning(String),
     Error {
         code: String,
@@ -96,19 +71,20 @@ pub(crate) fn parse_server_message(raw: &str) -> Result<ServerMessage, serde_jso
             session_id: field("session_id"),
         },
         "partial_transcript" => ServerMessage::Partial(field("text")),
-        "committed_transcript" | "committed_transcript_with_timestamps" => {
-            ServerMessage::Committed(field("text"))
-        }
-        "edited_transcript" => ServerMessage::Edited {
-            text: field("text"),
-            edited: field("edited_text"),
-        },
+        // The crate never asks for timestamps, so `committed_transcript_with_timestamps`
+        // would only be a second copy of a segment already delivered.
+        "committed_transcript" => ServerMessage::Committed(field("text")),
         "warning" => ServerMessage::Warning(field("warning")),
-        code if ERROR_TYPES.contains(&code) => ServerMessage::Error {
-            code: code.to_string(),
-            message: field("error"),
+        // The `error` field, not a list of known types, decides: the vendor adds types.
+        _ => match value.get("error") {
+            Some(error) => ServerMessage::Error {
+                code: kind,
+                message: error
+                    .as_str()
+                    .map_or_else(|| error.to_string(), str::to_string),
+            },
+            None => ServerMessage::Ignored(kind),
         },
-        _ => ServerMessage::Ignored(kind),
     })
 }
 
@@ -143,11 +119,6 @@ mod tests {
     }
 
     #[test]
-    fn i16_converts_little_endian() {
-        assert_eq!(i16_to_pcm16_bytes(&[1, -2]), vec![1, 0, 0xFE, 0xFF]);
-    }
-
-    #[test]
     fn parses_session_started() {
         let msg = parse_server_message(
             r#"{"message_type":"session_started","session_id":"s1","config":{"x":1}}"#,
@@ -172,24 +143,19 @@ mod tests {
                 .unwrap(),
             ServerMessage::Committed("salom".into())
         );
+    }
+
+    #[test]
+    fn timestamped_commit_is_ignored_so_a_segment_is_not_delivered_twice() {
         let with_timestamps = r#"{"message_type":"committed_transcript_with_timestamps","text":"salom","language_code":"uzb","words":[]}"#;
         assert_eq!(
             parse_server_message(with_timestamps).unwrap(),
-            ServerMessage::Committed("salom".into())
+            ServerMessage::Ignored("committed_transcript_with_timestamps".into())
         );
     }
 
     #[test]
-    fn parses_edited_and_warning() {
-        let edited =
-            r#"{"message_type":"edited_transcript","text":"salom","edited_text":"Salom."}"#;
-        assert_eq!(
-            parse_server_message(edited).unwrap(),
-            ServerMessage::Edited {
-                text: "salom".into(),
-                edited: "Salom.".into()
-            }
-        );
+    fn parses_warning() {
         assert_eq!(
             parse_server_message(r#"{"message_type":"warning","warning":"slow audio"}"#).unwrap(),
             ServerMessage::Warning("slow audio".into())
@@ -197,8 +163,8 @@ mod tests {
     }
 
     #[test]
-    fn parses_every_error_type() {
-        for code in ERROR_TYPES {
+    fn any_frame_with_an_error_field_is_an_error_even_if_the_type_is_new() {
+        for code in ["auth_error", "commit_throttled", "brand_new_error_type"] {
             let raw = format!(r#"{{"message_type":"{code}","error":"boom"}}"#);
             assert_eq!(
                 parse_server_message(&raw).unwrap(),

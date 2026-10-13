@@ -1,7 +1,7 @@
 /// Lowercases, folds every apostrophe variant to `'`, strips other punctuation
 /// and splits into words. Uzbek writes o'/g' with several look-alike marks, and a
 /// model may pick a different one than the reference without being wrong.
-pub fn normalize_words(text: &str) -> Vec<String> {
+fn normalize_words(text: &str) -> Vec<String> {
     let folded: String = text
         .chars()
         .flat_map(char::to_lowercase)
@@ -52,13 +52,13 @@ pub fn word_errors(reference: &str, hypothesis: &str) -> WordErrors {
     }
 }
 
-pub fn wer(reference: &str, hypothesis: &str) -> f64 {
-    word_errors(reference, hypothesis).rate()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn wer(reference: &str, hypothesis: &str) -> f64 {
+        word_errors(reference, hypothesis).rate()
+    }
 
     #[test]
     fn identical_text_is_zero() {

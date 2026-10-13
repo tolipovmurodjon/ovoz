@@ -1,699 +1,246 @@
 {
-  "configs": [
-    {
-      "latency_median_ms": 352,
-      "latency_worst_ms": 469,
-      "mean_wer_all": 0.48067321567321575,
-      "mean_wer_by_lang": [
-        [
-          "uz",
-          0.5337301587301587
-        ],
-        [
-          "en",
-          0.06517094017094018
-        ],
-        [
-          "mixed",
-          0.7837610801896516
-        ]
+  "config": {
+    "connect_median_ms": 506,
+    "connect_worst_ms": 745,
+    "latency_median_ms": 279,
+    "latency_worst_ms": 439,
+    "mean_wer_all": 0.11130633255633256,
+    "mean_wer_by_lang": [
+      [
+        "uz",
+        0.06547619047619048
       ],
-      "name": "A auto-detect",
-      "params": "language_code=None secondary=[] keyterms=false",
-      "rows": [
-        {
-          "edits": 10,
-          "error": null,
-          "hypothesis": "Bugün ertelip saat 06.00'da uyuydum ve Bondot namazını okudum.",
-          "id": "uz-01",
-          "lang": "uz",
-          "latency_ms": 327,
-          "reference": "Bugun ertalab soat oltida uyg'ondim va bomdod namozini o'qidim.",
-          "wer": 1.1111111111111112
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Homopediya bolalarga matematikani o'yin orqali o'rgatadi.",
-          "id": "uz-02",
-          "lang": "uz",
-          "latency_ms": 435,
-          "reference": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
-          "wer": 0.16666666666666666
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Efta universitetda uchta darsim bor. Keyin kutubxonaga boraman.",
-          "id": "uz-03",
-          "lang": "uz",
-          "latency_ms": 314,
-          "reference": "Ertaga universitetda uchta darsim bor, keyin kutubxonaga boraman.",
-          "wer": 0.125
-        },
-        {
-          "edits": 6,
-          "error": null,
-          "hypothesis": "İltimas. Bu faylını saklab qoy va mengə xabar yubor.",
-          "id": "uz-04",
-          "lang": "uz",
-          "latency_ms": 394,
-          "reference": "Iltimos, bu faylni saqlab qo'y va menga xabar yubor.",
-          "wer": 0.6666666666666666
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Samarqand'daki Registon Meydanı juda çiroylı ekan.",
-          "id": "uz-05",
-          "lang": "uz",
-          "latency_ms": 331,
-          "reference": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
-          "wer": 0.5
-        },
-        {
-          "edits": 7,
-          "error": null,
-          "hypothesis": "Меня-- Хозир Ташкенте яшайман, лекин оилам Фарғонада.",
-          "id": "uz-06",
-          "lang": "uz",
-          "latency_ms": 469,
-          "reference": "Men hozir Toshkentda yashayman, lekin oilam Farg'onada.",
-          "wer": 1.0
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Bu hafta içide loyihani tugatishimiz kerak.",
-          "id": "uz-07",
-          "lang": "uz",
-          "latency_ms": 317,
-          "reference": "Bu hafta ichida loyihani tugatishimiz kerak.",
-          "wer": 0.16666666666666666
-        },
-        {
-          "edits": 4,
-          "error": null,
-          "hypothesis": "Open the settings file and change the port to 7790.",
-          "id": "en-01",
-          "lang": "en",
-          "latency_ms": 318,
-          "reference": "Open the settings file and change the port to seven seven nine zero.",
-          "wer": 0.3076923076923077
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "I finished 17 lectures today and built every one of them myself.",
-          "id": "en-02",
-          "lang": "en",
-          "latency_ms": 365,
-          "reference": "I finished seventeen lectures today and built every one of them myself.",
-          "wer": 0.08333333333333333
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Please commit this on a feature branch, push it, and open a pull request.",
-          "id": "en-03",
-          "lang": "en",
-          "latency_ms": 346,
-          "reference": "Please commit this on a feature branch, push it, and open a pull request.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "The player controller should use the new input system, not the old one.",
-          "id": "en-04",
-          "lang": "en",
-          "latency_ms": 349,
-          "reference": "The player controller should use the new input system, not the old one.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Remind me to buy headphones tomorrow after the second class.",
-          "id": "en-05",
-          "lang": "en",
-          "latency_ms": 318,
-          "reference": "Remind me to buy headphones tomorrow after the second class.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "This function returns null when the list is empty, so add a check.",
-          "id": "en-06",
-          "lang": "en",
-          "latency_ms": 409,
-          "reference": "This function returns null when the list is empty, so add a check.",
-          "wer": 0.0
-        },
-        {
-          "edits": 13,
-          "error": null,
-          "hypothesis": "Bro, в Goon Unity-де снимаю machine-камерану, set up кылдым. Жутко зор ишлады.",
-          "id": "mixed-01",
-          "lang": "mixed",
-          "latency_ms": 359,
-          "reference": "Bro, bugun Unity'da Cinemachine camerani setup qildim, juda zo'r ishladi.",
-          "wer": 1.3
-        },
-        {
-          "edits": 5,
-          "error": null,
-          "hypothesis": "Дашборд на deploy калип, кейин pull request оч.",
-          "id": "mixed-02",
-          "lang": "mixed",
-          "latency_ms": 321,
-          "reference": "Dashboardni deploy qilib, keyin pull request och.",
-          "wer": 0.7142857142857143
-        },
-        {
-          "edits": 5,
-          "error": null,
-          "hypothesis": "ElevenLabs API key'ni Credential Store'ye sakla.",
-          "id": "mixed-03",
-          "lang": "mixed",
-          "latency_ms": 414,
-          "reference": "ElevenLabs API key ni credential store ga saqla.",
-          "wer": 0.625
-        },
-        {
-          "edits": 4,
-          "error": null,
-          "hypothesis": "Brenderdə low poly modelini eksport qilib, Unity'ye import qilaman.",
-          "id": "mixed-04",
-          "lang": "mixed",
-          "latency_ms": 320,
-          "reference": "Blender'da low poly modelni export qilib Unity'ga import qilaman.",
-          "wer": 0.4444444444444444
-        },
-        {
-          "edits": 11,
-          "error": null,
-          "hypothesis": "Хомопедия веб-версиясыны бетаге пуш кылдым. Эндэ тест кылыш керек.",
-          "id": "mixed-05",
-          "lang": "mixed",
-          "latency_ms": 352,
-          "reference": "Humopedia web versiyasini beta ga push qildim, endi test qilish kerak.",
-          "wer": 1.0
-        },
-        {
-          "edits": 6,
-          "error": null,
-          "hypothesis": "Pegil serverde restart oldu. Log'nu tekşirip kur.",
-          "id": "mixed-06",
-          "lang": "mixed",
-          "latency_ms": 404,
-          "reference": "PAGEL serverda restart bo'ldi, logni tekshirib ko'r.",
-          "wer": 0.8571428571428571
-        },
-        {
-          "edits": 6,
-          "error": null,
-          "hypothesis": "Şubu günne fix qıl, keyin test yoz va qimit qıl.",
-          "id": "mixed-07",
-          "lang": "mixed",
-          "latency_ms": 403,
-          "reference": "Shu bug ni fix qil, keyin test yoz va commit qil.",
-          "wer": 0.5454545454545454
-        }
-      ]
-    },
-    {
-      "latency_median_ms": 359,
-      "latency_worst_ms": 444,
-      "mean_wer_all": 0.1461890886890887,
-      "mean_wer_by_lang": [
-        [
-          "uz",
-          0.10515873015873016
-        ],
-        [
-          "en",
-          0.06517094017094018
-        ],
-        [
-          "mixed",
-          0.25666357452071736
-        ]
+      [
+        "en",
+        0.06517094017094018
       ],
-      "name": "B uz+en",
-      "params": "language_code=Some(\"uz\") secondary=[\"en\"] keyterms=false",
-      "rows": [
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Bugun ertalab soat 06:00da uyg'ondim va bondod namozini o'qidim.",
-          "id": "uz-01",
-          "lang": "uz",
-          "latency_ms": 368,
-          "reference": "Bugun ertalab soat oltida uyg'ondim va bomdod namozini o'qidim.",
-          "wer": 0.3333333333333333
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Homopediya bolalarga matematikani o'yin orqali o'rgatadi.",
-          "id": "uz-02",
-          "lang": "uz",
-          "latency_ms": 444,
-          "reference": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
-          "wer": 0.16666666666666666
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Efta universitetda uchta darsim bor. Keyin kutubxonaga boraman.",
-          "id": "uz-03",
-          "lang": "uz",
-          "latency_ms": 347,
-          "reference": "Ertaga universitetda uchta darsim bor, keyin kutubxonaga boraman.",
-          "wer": 0.125
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Илтимос, bu faylni saqlab qo‘y va menga xabar yubor.",
-          "id": "uz-04",
-          "lang": "uz",
-          "latency_ms": 359,
-          "reference": "Iltimos, bu faylni saqlab qo'y va menga xabar yubor.",
-          "wer": 0.1111111111111111
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
-          "id": "uz-05",
-          "lang": "uz",
-          "latency_ms": 298,
-          "reference": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Men hozir Toshkentda yashayman, lekin oilam Farg‘onada.",
-          "id": "uz-06",
-          "lang": "uz",
-          "latency_ms": 367,
-          "reference": "Men hozir Toshkentda yashayman, lekin oilam Farg'onada.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Bu hafta ichida loyihani tugatishimiz kerak.",
-          "id": "uz-07",
-          "lang": "uz",
-          "latency_ms": 342,
-          "reference": "Bu hafta ichida loyihani tugatishimiz kerak.",
-          "wer": 0.0
-        },
-        {
-          "edits": 4,
-          "error": null,
-          "hypothesis": "Open the settings file and change the port to 7790.",
-          "id": "en-01",
-          "lang": "en",
-          "latency_ms": 304,
-          "reference": "Open the settings file and change the port to seven seven nine zero.",
-          "wer": 0.3076923076923077
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "I finished 17 lectures today and built every one of them myself.",
-          "id": "en-02",
-          "lang": "en",
-          "latency_ms": 343,
-          "reference": "I finished seventeen lectures today and built every one of them myself.",
-          "wer": 0.08333333333333333
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Please commit this on a feature branch, push it, and open a pull request.",
-          "id": "en-03",
-          "lang": "en",
-          "latency_ms": 337,
-          "reference": "Please commit this on a feature branch, push it, and open a pull request.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "The player controller should use the new input system, not the old one.",
-          "id": "en-04",
-          "lang": "en",
-          "latency_ms": 397,
-          "reference": "The player controller should use the new input system, not the old one.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Remind me to buy headphones tomorrow after the second class.",
-          "id": "en-05",
-          "lang": "en",
-          "latency_ms": 396,
-          "reference": "Remind me to buy headphones tomorrow after the second class.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "This function returns null when the list is empty, so add a check.",
-          "id": "en-06",
-          "lang": "en",
-          "latency_ms": 337,
-          "reference": "This function returns null when the list is empty, so add a check.",
-          "wer": 0.0
-        },
-        {
-          "edits": 4,
-          "error": null,
-          "hypothesis": "Bro, bugun Unity'da cinema machine камерани setup qildim. Judda zo'r ishladi.",
-          "id": "mixed-01",
-          "lang": "mixed",
-          "latency_ms": 441,
-          "reference": "Bro, bugun Unity'da Cinemachine camerani setup qildim, juda zo'r ishladi.",
-          "wer": 0.4
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Dashbordni deploy qilib, keyin pull request och.",
-          "id": "mixed-02",
-          "lang": "mixed",
-          "latency_ms": 390,
-          "reference": "Dashboardni deploy qilib, keyin pull request och.",
-          "wer": 0.14285714285714285
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "ElevenLabs API key in Credential Store, please.",
-          "id": "mixed-03",
-          "lang": "mixed",
-          "latency_ms": 349,
-          "reference": "ElevenLabs API key ni credential store ga saqla.",
-          "wer": 0.375
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Brendardan low poly modelni eksport qilib, Unityga import qilaman.",
-          "id": "mixed-04",
-          "lang": "mixed",
-          "latency_ms": 443,
-          "reference": "Blender'da low poly modelni export qilib Unity'ga import qilaman.",
-          "wer": 0.3333333333333333
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Homopedia'ni web versiyasini betaga push qildim. Endi test qilish kerak.",
-          "id": "mixed-05",
-          "lang": "mixed",
-          "latency_ms": 316,
-          "reference": "Humopedia web versiyasini beta ga push qildim, endi test qilish kerak.",
-          "wer": 0.2727272727272727
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Pagel serverda restart bo'ldi. Logni tekshirib ko'r.",
-          "id": "mixed-06",
-          "lang": "mixed",
-          "latency_ms": 288,
-          "reference": "PAGEL serverda restart bo'ldi, logni tekshirib ko'r.",
-          "wer": 0.0
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Shubugni fix qil, keyin test yoz va commit qil.",
-          "id": "mixed-07",
-          "lang": "mixed",
-          "latency_ms": 389,
-          "reference": "Shu bug ni fix qil, keyin test yoz va commit qil.",
-          "wer": 0.2727272727272727
-        }
+      [
+        "mixed",
+        0.1966810966810967
       ]
-    },
-    {
-      "latency_median_ms": 362,
-      "latency_worst_ms": 432,
-      "mean_wer_all": 0.11585178710178709,
-      "mean_wer_by_lang": [
-        [
-          "uz",
-          0.06547619047619048
-        ],
-        [
-          "en",
-          0.06517094017094018
-        ],
-        [
-          "mixed",
-          0.20966810966810967
-        ]
-      ],
-      "name": "C uz+en + keyterms",
-      "params": "language_code=Some(\"uz\") secondary=[\"en\"] keyterms=true",
-      "rows": [
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Bugun ertalab soat 06:00 da uyg‘ondim va bomdod namozini o‘qidim.",
-          "id": "uz-01",
-          "lang": "uz",
-          "latency_ms": 400,
-          "reference": "Bugun ertalab soat oltida uyg'ondim va bomdod namozini o'qidim.",
-          "wer": 0.3333333333333333
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
-          "id": "uz-02",
-          "lang": "uz",
-          "latency_ms": 402,
-          "reference": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
-          "wer": 0.0
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "Efta universitetda uchta darsim bor. Keyin kutubxonaga boraman.",
-          "id": "uz-03",
-          "lang": "uz",
-          "latency_ms": 345,
-          "reference": "Ertaga universitetda uchta darsim bor, keyin kutubxonaga boraman.",
-          "wer": 0.125
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Iltimos, bu faylni saqlab qo‘y va menga xabar yubor.",
-          "id": "uz-04",
-          "lang": "uz",
-          "latency_ms": 373,
-          "reference": "Iltimos, bu faylni saqlab qo'y va menga xabar yubor.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
-          "id": "uz-05",
-          "lang": "uz",
-          "latency_ms": 403,
-          "reference": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Men hozir Toshkentda yashayman, lekin oilam Farg‘onada.",
-          "id": "uz-06",
-          "lang": "uz",
-          "latency_ms": 329,
-          "reference": "Men hozir Toshkentda yashayman, lekin oilam Farg'onada.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Bu hafta ichida loyihani tugatishimiz kerak.",
-          "id": "uz-07",
-          "lang": "uz",
-          "latency_ms": 349,
-          "reference": "Bu hafta ichida loyihani tugatishimiz kerak.",
-          "wer": 0.0
-        },
-        {
-          "edits": 4,
-          "error": null,
-          "hypothesis": "Open the settings file and change the port to 7790.",
-          "id": "en-01",
-          "lang": "en",
-          "latency_ms": 319,
-          "reference": "Open the settings file and change the port to seven seven nine zero.",
-          "wer": 0.3076923076923077
-        },
-        {
-          "edits": 1,
-          "error": null,
-          "hypothesis": "I finished 17 lectures today and built every one of them myself.",
-          "id": "en-02",
-          "lang": "en",
-          "latency_ms": 354,
-          "reference": "I finished seventeen lectures today and built every one of them myself.",
-          "wer": 0.08333333333333333
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Please commit this on a feature branch, push it, and open a pull request.",
-          "id": "en-03",
-          "lang": "en",
-          "latency_ms": 392,
-          "reference": "Please commit this on a feature branch, push it, and open a pull request.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "The player controller should use the new input system, not the old one.",
-          "id": "en-04",
-          "lang": "en",
-          "latency_ms": 321,
-          "reference": "The player controller should use the new input system, not the old one.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Remind me to buy headphones tomorrow after the second class.",
-          "id": "en-05",
-          "lang": "en",
-          "latency_ms": 359,
-          "reference": "Remind me to buy headphones tomorrow after the second class.",
-          "wer": 0.0
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "This function returns null when the list is empty, so add a check.",
-          "id": "en-06",
-          "lang": "en",
-          "latency_ms": 406,
-          "reference": "This function returns null when the list is empty, so add a check.",
-          "wer": 0.0
-        },
-        {
-          "edits": 2,
-          "error": null,
-          "hypothesis": "Bro, bugun Unity'da Cinemachine kamerani setup qildim. Judda zo'r ishladi.",
-          "id": "mixed-01",
-          "lang": "mixed",
-          "latency_ms": 287,
-          "reference": "Bro, bugun Unity'da Cinemachine camerani setup qildim, juda zo'r ishladi.",
-          "wer": 0.2
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "Dashboardni deploy qilib, keyin pull request och.",
-          "id": "mixed-02",
-          "lang": "mixed",
-          "latency_ms": 419,
-          "reference": "Dashboardni deploy qilib, keyin pull request och.",
-          "wer": 0.0
-        },
-        {
-          "edits": 4,
-          "error": null,
-          "hypothesis": "ElevenLabs API key credential storage akhlaq.",
-          "id": "mixed-03",
-          "lang": "mixed",
-          "latency_ms": 362,
-          "reference": "ElevenLabs API key ni credential store ga saqla.",
-          "wer": 0.5
-        },
-        {
-          "edits": 2,
-          "error": null,
-          "hypothesis": "Blenderda low poly modelni export qilib, Unityga import qilaman.",
-          "id": "mixed-04",
-          "lang": "mixed",
-          "latency_ms": 361,
-          "reference": "Blender'da low poly modelni export qilib Unity'ga import qilaman.",
-          "wer": 0.2222222222222222
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Humopedia'ni web versiyasini betaga push qildim. Endi test qilish kerak.",
-          "id": "mixed-05",
-          "lang": "mixed",
-          "latency_ms": 432,
-          "reference": "Humopedia web versiyasini beta ga push qildim, endi test qilish kerak.",
-          "wer": 0.2727272727272727
-        },
-        {
-          "edits": 0,
-          "error": null,
-          "hypothesis": "PAGEL serverda restart bo'ldi. Logni tekshirib ko'r.",
-          "id": "mixed-06",
-          "lang": "mixed",
-          "latency_ms": 299,
-          "reference": "PAGEL serverda restart bo'ldi, logni tekshirib ko'r.",
-          "wer": 0.0
-        },
-        {
-          "edits": 3,
-          "error": null,
-          "hypothesis": "Shubugni fix qil, keyin test yoz va commit qil.",
-          "id": "mixed-07",
-          "lang": "mixed",
-          "latency_ms": 376,
-          "reference": "Shu bug ni fix qil, keyin test yoz va commit qil.",
-          "wer": 0.2727272727272727
-        }
-      ]
-    }
-  ],
-  "extras": [
-    {
-      "clip": "mixed-05",
-      "committed_latency_ms": 381,
-      "error": null,
-      "extra_event_latency_ms": null,
-      "hypothesis": "Humopedia'ni web versiyasini betaga push qildim. Endi test qilish kerak.",
-      "name": "baseline (best config)"
-    },
-    {
-      "clip": "mixed-05",
-      "committed_latency_ms": 366,
-      "error": null,
-      "extra_event_latency_ms": null,
-      "hypothesis": "Humopedia'ning veb versiyasini betaga push qildim. Endi test qilish kerak.",
-      "name": "no_verbatim=true"
-    },
-    {
-      "clip": "mixed-05",
-      "committed_latency_ms": 346,
-      "error": null,
-      "extra_event_latency_ms": 783,
-      "hypothesis": "Humopedia'ni web versiyasini betaga push qildim. Endi test qilish kerak.",
-      "name": "transcript_edit"
-    }
-  ]
+    ],
+    "params": "language_code=uz secondary=[en] keyterms=12",
+    "rows": [
+      {
+        "connect_ms": 745,
+        "edits": 3,
+        "error": null,
+        "hypothesis": "Bugun ertalab soat 06:00 da uyg‘ondim va bomdod namozini o‘qidim.",
+        "id": "uz-01",
+        "lang": "uz",
+        "latency_ms": 378,
+        "reference": "Bugun ertalab soat oltida uyg'ondim va bomdod namozini o'qidim.",
+        "wer": 0.3333333333333333
+      },
+      {
+        "connect_ms": 506,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
+        "id": "uz-02",
+        "lang": "uz",
+        "latency_ms": 378,
+        "reference": "Humopedia bolalarga matematikani o'yin orqali o'rgatadi.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 421,
+        "edits": 1,
+        "error": null,
+        "hypothesis": "Efta universitetda uchta darsim bor. Keyin kutubxonaga boraman.",
+        "id": "uz-03",
+        "lang": "uz",
+        "latency_ms": 292,
+        "reference": "Ertaga universitetda uchta darsim bor, keyin kutubxonaga boraman.",
+        "wer": 0.125
+      },
+      {
+        "connect_ms": 516,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Iltimos, bu faylni saqlab qo‘y va menga xabar yubor.",
+        "id": "uz-04",
+        "lang": "uz",
+        "latency_ms": 252,
+        "reference": "Iltimos, bu faylni saqlab qo'y va menga xabar yubor.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 404,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
+        "id": "uz-05",
+        "lang": "uz",
+        "latency_ms": 241,
+        "reference": "Samarqanddagi Registon maydoni juda chiroyli ekan.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 515,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Men hozir Toshkentda yashayman, lekin oilam Farg‘onada.",
+        "id": "uz-06",
+        "lang": "uz",
+        "latency_ms": 250,
+        "reference": "Men hozir Toshkentda yashayman, lekin oilam Farg'onada.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 507,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Bu hafta ichida loyihani tugatishimiz kerak.",
+        "id": "uz-07",
+        "lang": "uz",
+        "latency_ms": 264,
+        "reference": "Bu hafta ichida loyihani tugatishimiz kerak.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 422,
+        "edits": 4,
+        "error": null,
+        "hypothesis": "Open the settings file and change the port to 7790.",
+        "id": "en-01",
+        "lang": "en",
+        "latency_ms": 281,
+        "reference": "Open the settings file and change the port to seven seven nine zero.",
+        "wer": 0.3076923076923077
+      },
+      {
+        "connect_ms": 496,
+        "edits": 1,
+        "error": null,
+        "hypothesis": "I finished 17 lectures today and built every one of them myself.",
+        "id": "en-02",
+        "lang": "en",
+        "latency_ms": 279,
+        "reference": "I finished seventeen lectures today and built every one of them myself.",
+        "wer": 0.08333333333333333
+      },
+      {
+        "connect_ms": 532,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Please commit this on a feature branch, push it, and open a pull request.",
+        "id": "en-03",
+        "lang": "en",
+        "latency_ms": 268,
+        "reference": "Please commit this on a feature branch, push it, and open a pull request.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 530,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "The player controller should use the new input system, not the old one.",
+        "id": "en-04",
+        "lang": "en",
+        "latency_ms": 271,
+        "reference": "The player controller should use the new input system, not the old one.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 506,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Remind me to buy headphones tomorrow after the second class.",
+        "id": "en-05",
+        "lang": "en",
+        "latency_ms": 289,
+        "reference": "Remind me to buy headphones tomorrow after the second class.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 407,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "This function returns null when the list is empty, so add a check.",
+        "id": "en-06",
+        "lang": "en",
+        "latency_ms": 247,
+        "reference": "This function returns null when the list is empty, so add a check.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 520,
+        "edits": 2,
+        "error": null,
+        "hypothesis": "Bro, bugun Unity'da Cinemachine kamerani setup qildim. Judda zo'r ishladi.",
+        "id": "mixed-01",
+        "lang": "mixed",
+        "latency_ms": 246,
+        "reference": "Bro, bugun Unity'da Cinemachine camerani setup qildim, juda zo'r ishladi.",
+        "wer": 0.2
+      },
+      {
+        "connect_ms": 502,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "Dashboardni deploy qilib, keyin pull request och.",
+        "id": "mixed-02",
+        "lang": "mixed",
+        "latency_ms": 291,
+        "reference": "Dashboardni deploy qilib, keyin pull request och.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 444,
+        "edits": 4,
+        "error": null,
+        "hypothesis": "ElevenLabs API key credential storage akhlaq.",
+        "id": "mixed-03",
+        "lang": "mixed",
+        "latency_ms": 255,
+        "reference": "ElevenLabs API key ni credential store ga saqla.",
+        "wer": 0.5
+      },
+      {
+        "connect_ms": 515,
+        "edits": 2,
+        "error": null,
+        "hypothesis": "Blenderda low poly modelni export qilib, Unityga import qilaman.",
+        "id": "mixed-04",
+        "lang": "mixed",
+        "latency_ms": 287,
+        "reference": "Blender'da low poly modelni export qilib Unity'ga import qilaman.",
+        "wer": 0.2222222222222222
+      },
+      {
+        "connect_ms": 497,
+        "edits": 3,
+        "error": null,
+        "hypothesis": "Humopedia'ni web versiyasini betaga push qildim. Endi test qilish kerak.",
+        "id": "mixed-05",
+        "lang": "mixed",
+        "latency_ms": 343,
+        "reference": "Humopedia web versiyasini beta ga push qildim, endi test qilish kerak.",
+        "wer": 0.2727272727272727
+      },
+      {
+        "connect_ms": 495,
+        "edits": 0,
+        "error": null,
+        "hypothesis": "PAGEL serverda restart bo'ldi. Logni tekshirib ko'r.",
+        "id": "mixed-06",
+        "lang": "mixed",
+        "latency_ms": 252,
+        "reference": "PAGEL serverda restart bo'ldi, logni tekshirib ko'r.",
+        "wer": 0.0
+      },
+      {
+        "connect_ms": 421,
+        "edits": 2,
+        "error": null,
+        "hypothesis": "Shu bug`ni fix qil, keyin test yoz va commit qil.",
+        "id": "mixed-07",
+        "lang": "mixed",
+        "latency_ms": 439,
+        "reference": "Shu bug ni fix qil, keyin test yoz va commit qil.",
+        "wer": 0.18181818181818182
+      }
+    ]
+  }
 }

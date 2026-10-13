@@ -8,25 +8,6 @@ const MODEL_ID: &str = "scribe_v2_realtime";
 const MAX_KEYTERMS: usize = 50;
 const MAX_KEYTERM_CHARS: usize = 20;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CommitStrategy {
-    /// The caller decides when a segment ends; `finish` sends the commit.
-    #[default]
-    Manual,
-    Vad,
-    TurnPrediction,
-}
-
-impl CommitStrategy {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Manual => "manual",
-            Self::Vad => "vad",
-            Self::TurnPrediction => "turn_prediction",
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct ScribeConfig {
     pub api_key: String,
@@ -34,12 +15,17 @@ pub struct ScribeConfig {
     pub secondary_languages: Vec<String>,
     pub keyterms: Vec<String>,
     pub no_verbatim: bool,
-    pub transcript_edit: Option<String>,
     /// Sent with the first audio chunk only, as the API requires.
     pub previous_text: Option<String>,
-    pub commit_strategy: CommitStrategy,
+    /// Covers the websocket handshake and the wait for `session_started`.
     pub connect_timeout: Duration,
+    /// How long `finish` waits for the server after the final commit.
     pub finish_timeout: Duration,
+    /// A socket write that takes longer than this fails the session, so a dead
+    /// network is noticed during the hold instead of at the key release.
+    pub send_timeout: Duration,
+    /// Replaces the production endpoint so tests can talk to a local server.
+    pub(crate) endpoint: Option<String>,
 }
 
 impl ScribeConfig {
@@ -50,23 +36,24 @@ impl ScribeConfig {
             secondary_languages: Vec::new(),
             keyterms: Vec::new(),
             no_verbatim: false,
-            transcript_edit: None,
             previous_text: None,
-            commit_strategy: CommitStrategy::default(),
-            connect_timeout: Duration::from_secs(10),
-            finish_timeout: Duration::from_secs(10),
+            connect_timeout: Duration::from_secs(5),
+            finish_timeout: Duration::from_secs(3),
+            send_timeout: Duration::from_secs(3),
+            endpoint: None,
         }
     }
 
     /// Builds the websocket URL. Array parameters are repeated keys
     /// (`keyterms=a&keyterms=b`), exactly as the official Python and JS SDKs send them.
     pub(crate) fn websocket_url(&self) -> Url {
-        let mut url = Url::parse(ENDPOINT).expect("endpoint constant is a valid URL");
+        let mut url = Url::parse(self.endpoint.as_deref().unwrap_or(ENDPOINT))
+            .expect("endpoint is a valid URL");
         {
             let mut query = url.query_pairs_mut();
             query.append_pair("model_id", MODEL_ID);
             query.append_pair("audio_format", "pcm_16000");
-            query.append_pair("commit_strategy", self.commit_strategy.as_str());
+            query.append_pair("commit_strategy", "manual");
             if let Some(language) = &self.language_code {
                 query.append_pair("language_code", language);
             }
@@ -78,9 +65,6 @@ impl ScribeConfig {
             }
             if self.no_verbatim {
                 query.append_pair("no_verbatim", "true");
-            }
-            if let Some(instruction) = &self.transcript_edit {
-                query.append_pair("transcript_edit", instruction);
             }
         }
         url
@@ -96,8 +80,6 @@ impl fmt::Debug for ScribeConfig {
             .field("secondary_languages", &self.secondary_languages)
             .field("keyterms", &self.keyterms)
             .field("no_verbatim", &self.no_verbatim)
-            .field("transcript_edit", &self.transcript_edit)
-            .field("commit_strategy", &self.commit_strategy)
             .finish_non_exhaustive()
     }
 }

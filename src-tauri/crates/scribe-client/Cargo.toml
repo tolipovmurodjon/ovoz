@@ -14,9 +14,15 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1", features = ["macros", "net", "rt", "sync", "time"] }
 tokio-tungstenite = { version = "0.26", default-features = false, features = ["connect", "native-tls"] }
 url = "2"
 
 [dev-dependencies]
 hound = "3"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+# The bench and its word-error-rate helper carry unit tests; examples skip tests by default.
+[[example]]
+name = "bench"
+test = true
