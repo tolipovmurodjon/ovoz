@@ -575,8 +575,9 @@ fn default_translate_to_english() -> bool {
     false
 }
 
+// Dictation lives in the tray, like Wispr Flow; the window opens only on demand.
 fn default_start_hidden() -> bool {
-    false
+    true
 }
 
 fn default_autostart_enabled() -> bool {
