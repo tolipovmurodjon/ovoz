@@ -1,366 +1,370 @@
 import { listen } from "@tauri-apps/api/event";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, Clipboard, History, Mic, Settings, X } from "lucide-react";
 import "./RecordingOverlay.css";
 import { commands, events } from "@/bindings";
-import type {
-  StreamPhase,
-  StreamPhaseEvent,
-  StreamTextEvent,
-  StreamWorkKind,
-} from "@/bindings";
+import type { StreamPhaseEvent } from "@/bindings";
 import i18n, { syncLanguageFromSettings } from "@/i18n";
-import type { ModelStateEvent } from "@/lib/types/events";
+import {
+  MAIN_LANGUAGE_CHOICES,
+  switchMainLanguage,
+} from "@/lib/utils/dictationLanguages";
 import { getLanguageDirection } from "@/lib/utils/rtl";
 
-type OverlayState = "recording" | "streaming" | "transcribing" | "processing";
+// "idle" is Sadomi's resting pill between dictations (Windows).
+type OverlayState =
+  | "idle"
+  | "recording"
+  | "streaming"
+  | "transcribing"
+  | "processing";
 
-// Number of reactive bars in the waveform (the simple, smoothed style shared by
-// every overlay form). Mic levels arrive as 16 FFT buckets; we take the first N.
 const WAVE_BARS = 9;
+// Hover leaves the menu open this long, so a pointer that slips off the edge
+// for a moment does not close it.
+const MENU_CLOSE_DELAY_MS = 500;
+const CANCELLED_TOAST_MS = 1400;
 
-// Only call out a model load in the Live preview once it has run this long.
-// Warm loads finish in well under this (~0.2s on Apple Silicon, ~1.5s on a
-// Windows CPU backend), so the common case never flashes a loading notice while
-// the user is speaking; cold loads can take 40s+.
-const SLOW_MODEL_LOAD_MS = 2000;
+// Short codes shown on the pill's language chip, never translated.
+const LANGUAGE_CHIPS: Record<string, string> = {
+  en: "EN",
+  uz: "UZ",
+  ru: "RU",
+};
+
+type Tip = "dictate" | "finish" | "cancel" | null;
+
+// Key names as printed on a Windows keyboard, never translated.
+const KEY_NAMES: Record<string, string> = {
+  ctrl: "Ctrl",
+  control: "Ctrl",
+  super: "Win",
+  meta: "Win",
+  alt: "Alt",
+  shift: "Shift",
+  space: "Space",
+};
+
+// "ctrl_left+super_left" -> "Ctrl + Win": the short form Wispr Flow shows.
+const shortShortcut = (binding: string) =>
+  binding
+    .split("+")
+    .map((part) => part.trim().replace(/_(left|right)$/, ""))
+    .filter(Boolean)
+    .map((key) => KEY_NAMES[key] ?? key.charAt(0).toUpperCase() + key.slice(1))
+    .join(" + ");
 
 const RecordingOverlay: React.FC = () => {
   const { t } = useTranslation();
+  const [state, setState] = useState<OverlayState>("idle");
+  // The window is only on screen while shown; this drives the leave animation.
   const [isVisible, setIsVisible] = useState(false);
-  const [state, setState] = useState<OverlayState>("recording");
-  // `Stream::play()` returning does not mean hardware callbacks are flowing.
-  // Stay visually in an arming state until the backend processes the first
-  // actual microphone sample chunk.
   const [captureReady, setCaptureReady] = useState(false);
-  // Recording starts while the model loads in the background. Say so, otherwise
-  // a cold start looks like an empty Live preview that ignores speech, then a
-  // hung "Transcribing..." spinner. Once recording stops, any in-flight load is
-  // the wait, so the working label reflects it immediately; the Live notice
-  // waits for the load to be slow so fast loads don't flash it mid-speech.
-  const [modelLoading, setModelLoading] = useState(false);
-  const [modelLoadSlow, setModelLoadSlow] = useState(false);
-  const modelLoadTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  // Latched per Live session: once the loading notice has opened the panel, keep
-  // it open after the load so it doesn't collapse and reopen when text arrives.
-  const [loadNoticeShown, setLoadNoticeShown] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [tip, setTip] = useState<Tip>(null);
+  const [cancelledToast, setCancelledToast] = useState(false);
   const [levels, setLevels] = useState<number[]>(Array(WAVE_BARS).fill(0));
-  const [streamText, setStreamText] = useState<StreamTextEvent>({
-    committed: "",
-    tentative: "",
-  });
-  const [phase, setPhase] = useState<StreamPhase>("listening");
-  const [workKind, setWorkKind] = useState<StreamWorkKind>("transcribing");
-  const [elapsed, setElapsed] = useState(0);
-  // Bumped on each new streaming session so the Live card remounts fresh (replays
-  // the pop-in, and never animates in from the previous panel's open size).
-  const [session, setSession] = useState(0);
-  // Overlay placement (top vs bottom of the screen). The Live panel grows downward
-  // from a top overlay (oldest line under the pill) and upward from a bottom one.
   const [position, setPosition] = useState<"top" | "bottom">("bottom");
-  // True once live text overflows the cap. A top overlay fades its top edge only
-  // while overflowing, so the resting first line stays crisp flush under the pill.
-  const [overflowing, setOverflowing] = useState(false);
+  const [shortcut, setShortcut] = useState("");
+  const [language, setLanguage] = useState("en");
+  const [secondary, setSecondary] = useState<string[]>([]);
 
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
-  // Live-text scroll-back: the text region "sticks" to the newest line while the
-  // user is at the bottom; if they scroll up to read history, auto-follow pauses
-  // until they scroll back down.
-  const capRef = useRef<HTMLDivElement>(null);
-  const pinnedRef = useRef(true);
+  const hotRef = useRef<HTMLDivElement>(null);
+  const menuCloseTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const direction = getLanguageDirection(i18n.language);
 
+  const readSettings = async () => {
+    try {
+      const result = await commands.getAppSettings();
+      if (result.status !== "ok") return;
+      const settings = result.data;
+      setPosition(settings.overlay_position === "top" ? "top" : "bottom");
+      setLanguage(settings.cloud_stt_language ?? "en");
+      setSecondary(settings.cloud_stt_secondary_languages ?? []);
+      const binding = settings.bindings?.transcribe?.current_binding ?? "";
+      setShortcut(shortShortcut(binding));
+    } catch {
+      // Keep the last values if settings cannot be read.
+    }
+  };
+
   useEffect(() => {
-    const setupEventListeners = async () => {
-      const unlistenShow = await listen("show-overlay", async (event) => {
-        const overlayState = event.payload as OverlayState;
-        // Reset synchronously before settings I/O. A fast microphone can emit
-        // recording-ready while the awaits below are in flight; resetting after
-        // them would overwrite that event and leave the overlay stuck arming.
-        if (overlayState === "recording" || overlayState === "streaming") {
-          setCaptureReady(false);
-          smoothedLevelsRef.current = Array(16).fill(0);
-          setLevels(Array(WAVE_BARS).fill(0));
-          setStreamText({ committed: "", tentative: "" });
-        }
-
-        await syncLanguageFromSettings();
-        // The Live panel flows downward from a top overlay and upward from a
-        // bottom one; read the placement so the layout can flip to match.
-        try {
-          const settings = await commands.getAppSettings();
-          if (settings.status === "ok") {
-            setPosition(
-              settings.data.overlay_position === "top" ? "top" : "bottom",
-            );
+    readSettings();
+    const setup = async () => {
+      const unlistenShow = await listen<OverlayState>(
+        "show-overlay",
+        async (event) => {
+          const next = event.payload;
+          if (next === "recording" || next === "streaming") {
+            setCaptureReady(false);
+            smoothedLevelsRef.current = Array(16).fill(0);
+            setLevels(Array(WAVE_BARS).fill(0));
           }
-        } catch {
-          // Keep the previous/default placement if settings can't be read.
-        }
-        setState(overlayState);
-        if (overlayState === "streaming") {
-          setPhase("listening");
-          setWorkKind("transcribing");
-          setElapsed(0);
-          setLoadNoticeShown(false);
-          setSession((s) => s + 1); // remount the card fresh for this session
-        }
-        setIsVisible(true);
-      });
-
+          setWorking(next === "transcribing" || next === "processing");
+          setMenuOpen(false);
+          setTip(null);
+          setState(next);
+          setIsVisible(true);
+          await syncLanguageFromSettings();
+          readSettings();
+        },
+      );
+      // The backend sends this when a dictation ends. With the resting pill
+      // the window stays, so fall back to idle; otherwise it fades out.
       const unlistenHide = await listen("hide-overlay", () => {
-        setIsVisible(false);
+        setState("idle");
+        setWorking(false);
         setCaptureReady(false);
+        setTip(null);
       });
-
-      const unlistenReady = await listen("recording-ready", () => {
-        setElapsed(0);
-        setCaptureReady(true);
-      });
-
+      const unlistenReady = await listen("recording-ready", () =>
+        setCaptureReady(true),
+      );
       const unlistenLevel = await listen<number[]>("mic-level", (event) => {
-        const newLevels = event.payload as number[];
-        // Exponential smoothing across the 16 buckets, then take the first N
-        // bars for the shared waveform.
-        const smoothed = smoothedLevelsRef.current.map((prev, i) => {
-          const target = newLevels[i] || 0;
-          return prev * 0.7 + target * 0.3;
-        });
+        const smoothed = smoothedLevelsRef.current.map(
+          (prev, i) => prev * 0.7 + (event.payload[i] || 0) * 0.3,
+        );
         smoothedLevelsRef.current = smoothed;
         setLevels(smoothed.slice(0, WAVE_BARS));
       });
-
-      const unlistenStream = await events.streamTextEvent.listen((event) => {
-        setStreamText(event.payload);
-      });
-
       const unlistenPhase = await events.streamPhaseEvent.listen((event) => {
         const payload: StreamPhaseEvent = event.payload;
-        setPhase(payload.phase);
-        if (payload.kind) setWorkKind(payload.kind);
+        setWorking(payload.phase === "working");
       });
-
-      // The backend ends every `loading_started` with exactly one of completed
-      // or failed, so only those end a load. Other events (e.g. `unloaded` from
-      // the idle watcher) aren't ordered against an in-flight load and must not
-      // clear it.
-      const unlistenModel = await listen<ModelStateEvent>(
-        "model-state-changed",
-        (event) => {
-          const type = event.payload.event_type;
-          if (type === "loading_started") {
-            clearTimeout(modelLoadTimerRef.current);
-            setModelLoading(true);
-            setModelLoadSlow(false);
-            modelLoadTimerRef.current = setTimeout(
-              () => setModelLoadSlow(true),
-              SLOW_MODEL_LOAD_MS,
-            );
-          } else if (
-            type === "loading_completed" ||
-            type === "loading_failed"
-          ) {
-            clearTimeout(modelLoadTimerRef.current);
-            setModelLoading(false);
-            setModelLoadSlow(false);
-          }
-        },
+      // From the Rust pointer watcher: the window is click-through, so CSS
+      // :hover would miss the moment the pointer leaves.
+      const unlistenHover = await listen<boolean>("overlay-hover", (event) =>
+        setHovered(event.payload),
       );
-
       return () => {
         unlistenShow();
         unlistenHide();
         unlistenReady();
         unlistenLevel();
-        unlistenStream();
         unlistenPhase();
-        unlistenModel();
-        clearTimeout(modelLoadTimerRef.current);
+        unlistenHover();
       };
     };
-
-    setupEventListeners();
+    const cleanup = setup();
+    return () => {
+      cleanup.then((fn) => fn());
+      clearTimeout(menuCloseTimer.current);
+      clearTimeout(toastTimer.current);
+    };
   }, []);
 
-  // Elapsed capture timer starts only once microphone samples are flowing.
+  // A menu closes when the pointer has been away for a moment.
   useEffect(() => {
-    if (state !== "streaming" || !isVisible || !captureReady) return;
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(id);
-  }, [state, isVisible, captureReady]);
+    clearTimeout(menuCloseTimer.current);
+    if (!hovered && menuOpen) {
+      menuCloseTimer.current = setTimeout(
+        () => setMenuOpen(false),
+        MENU_CLOSE_DELAY_MS,
+      );
+    }
+    if (!hovered) setTip(null);
+  }, [hovered, menuOpen]);
 
-  // Stick to the bottom as text streams in — but only while pinned, so a user who
-  // has scrolled up to read history isn't yanked back down by the next chunk.
+  // Tell Rust where clicks belong. Everything outside passes through.
   useLayoutEffect(() => {
-    const el = capRef.current;
+    const el = hotRef.current;
     if (!el) return;
-    // Fade the top edge only once text actually overflows the cap.
-    setOverflowing(el.scrollHeight > el.clientHeight + 1);
-    if (pinnedRef.current) el.scrollTop = el.scrollHeight;
-  }, [streamText]);
+    const report = () => {
+      const r = el.getBoundingClientRect();
+      commands.setOverlayHotArea(r.left, r.top, r.width, r.height);
+    };
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [state, menuOpen, isVisible]);
 
-  // `session` re-runs this when a new Live session starts mid-load (e.g. a
-  // retry during a cold load), since the reset doesn't change the other deps.
-  useEffect(() => {
-    if (modelLoadSlow && state === "streaming") setLoadNoticeShown(true);
-  }, [modelLoadSlow, state, session]);
+  const dictating = state === "recording" || state === "streaming";
+  const busy = working || state === "transcribing" || state === "processing";
+  const expanded = state === "idle" && (hovered || menuOpen);
 
-  // Each fresh streaming session starts pinned to the bottom, fade cleared.
-  useEffect(() => {
-    pinnedRef.current = true;
-    setOverflowing(false);
-  }, [session]);
-
-  if (!isVisible) return null;
-
-  // Re-pin when the user is within ~a line of the bottom; unpin otherwise.
-  const handleStreamScroll = () => {
-    const el = capRef.current;
-    if (!el) return;
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 16;
+  const cancel = () => {
+    commands.cancelOperation();
+    clearTimeout(toastTimer.current);
+    setCancelledToast(true);
+    toastTimer.current = setTimeout(
+      () => setCancelledToast(false),
+      CANCELLED_TOAST_MS,
+    );
   };
 
-  const fmtTime = (s: number) =>
-    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const chooseLanguage = async (next: string) => {
+    if (next === language) return;
+    await switchMainLanguage(language, next, secondary);
+    await readSettings();
+  };
 
-  const transcribingLabel = modelLoading
-    ? t("overlay.loadingModel")
-    : t("overlay.transcribing");
+  const runAndClose = (action: () => void) => () => {
+    setMenuOpen(false);
+    action();
+  };
 
-  // ---- Shared building blocks (one visual language for every overlay form) ----
+  // Pointing at the open pill explains the shortcut, as Wispr Flow does.
+  const shownTip: Tip = tip ?? (expanded && !menuOpen ? "dictate" : null);
+  const tipText =
+    shownTip === "dictate"
+      ? t("overlay.tip.dictate", { shortcut })
+      : shownTip === "finish"
+        ? t("overlay.tip.finish")
+        : shownTip === "cancel"
+          ? t("overlay.tip.cancel")
+          : null;
+
   const waveform = (
-    <div className={`swave ${captureReady ? "ready" : "arming"}`}>
+    <div className={`wave ${captureReady ? "ready" : "arming"}`}>
       {levels.map((v, i) => (
         <i
           key={i}
           style={{
-            height: `${Math.max(3, Math.min(18, 3 + Math.pow(v, 0.7) * 15))}px`,
+            height: `${Math.max(3, Math.min(16, 3 + Math.pow(v, 0.7) * 13))}px`,
           }}
         />
       ))}
     </div>
   );
 
-  const cancelBtn = (
-    <button
-      className="sx"
-      aria-label="cancel"
-      onClick={() => commands.cancelOperation()}
-    >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path
-          d="M4 4 L12 12 M12 4 L4 12"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-        />
-      </svg>
-    </button>
-  );
-
-  // dot (left) | waveform (center) | timer + cancel (right) — same structure for
-  // pill & panel, so the Live morph is a pure width change.
-  const listeningRow = (showTimer: boolean, showCancel: boolean) => (
-    <div className="sbase">
-      <div className="sbase-l">
-        <span className={`sdot ${captureReady ? "ready" : "arming"}`} />
+  const menu = menuOpen && (
+    <div className="menu" role="menu" onContextMenu={(e) => e.preventDefault()}>
+      <div className="menu-label">{t("overlay.menu.language")}</div>
+      <div className="menu-langs" role="radiogroup">
+        {MAIN_LANGUAGE_CHOICES.map((code) => (
+          <button
+            key={code || "auto"}
+            role="radio"
+            aria-checked={language === code}
+            className={language === code ? "on" : ""}
+            onClick={() => chooseLanguage(code)}
+          >
+            {code ? LANGUAGE_CHIPS[code] : t("overlay.menu.auto")}
+          </button>
+        ))}
       </div>
-      {waveform}
-      <div className="sbase-r">
-        {showTimer && <span className="stimer">{fmtTime(elapsed)}</span>}
-        {showCancel && cancelBtn}
-      </div>
+      <div className="menu-rule" />
+      <button
+        role="menuitem"
+        onClick={runAndClose(() => commands.pasteLastTranscript())}
+      >
+        <Clipboard size={15} />
+        {t("overlay.menu.pasteLast")}
+      </button>
+      <button
+        role="menuitem"
+        onClick={runAndClose(() => commands.showMainWindowSection("history"))}
+      >
+        <History size={15} />
+        {t("overlay.menu.history")}
+      </button>
+      <button
+        role="menuitem"
+        onClick={runAndClose(() => commands.showMainWindowSection("general"))}
+      >
+        <Settings size={15} />
+        {t("overlay.menu.settings")}
+      </button>
+      <div className="menu-rule" />
+      <button
+        role="menuitem"
+        className="quiet"
+        onClick={runAndClose(() => commands.snoozeOverlay(60))}
+      >
+        {t("overlay.menu.hideHour")}
+      </button>
     </div>
   );
 
-  // spinner (left) | label (center) | cancel (right) — same 3-zone grid as the
-  // listening row, so the label is centered.
-  const workingRow = (label: string, showCancel: boolean) => (
-    <div className="sbase">
-      <div className="sbase-l">
-        <span className="sspinner" />
-      </div>
-      <span className="swork-label">{label}</span>
-      <div className="sbase-r">{showCancel && cancelBtn}</div>
-    </div>
-  );
-
-  // ---- Live overlay: a pill that sculpts open into a panel ----
-  if (state === "streaming") {
-    const hasText =
-      streamText.committed.length > 0 || streamText.tentative.length > 0;
-    const working = phase === "working";
-    // While listening, a slow model load opens the panel with a notice where the
-    // text would be, so speech that isn't transcribing yet doesn't look ignored.
-    const loadingNotice = modelLoadSlow && !working && !hasText;
-    // Keep the panel open whenever there's text — even while finalizing — so the
-    // transcript stays put under a working spinner instead of collapsing and
-    // squishing the text mid-stream. Only fall back to the small working pill
-    // when there was no text to preserve.
-    const open = hasText || loadingNotice || (loadNoticeShown && !working);
-    const collapsed = working && !hasText;
-
-    return (
-      <div dir={direction} className={`ov-stage ${position}`}>
-        <div
-          key={session}
-          className={`scard ${open ? "open" : ""} ${collapsed ? "working" : ""} ${
-            isVisible ? "" : "leaving"
-          }`}
-        >
-          <div className="stext">
-            <div className="stext-clip">
-              <div
-                className={`stext-cap ${overflowing ? "overflowing" : ""}`}
-                ref={capRef}
-                onScroll={handleStreamScroll}
-              >
-                <p>
-                  {loadingNotice && (
-                    <span className="sloading">
-                      {t("overlay.loadingModel")}
-                    </span>
-                  )}
-                  <span className="committed">
-                    {streamText.committed ? streamText.committed + " " : ""}
-                  </span>
-                  <span className="tentative">{streamText.tentative}</span>
-                  {/* Drop the blinking caret once finalizing — it's no longer
-                      capturing, and a static spinner conveys the work. */}
-                  {!working && !loadingNotice && <span className="scaret" />}
-                </p>
-              </div>
-            </div>
-          </div>
-          {working
-            ? workingRow(
-                workKind === "polishing"
-                  ? t("overlay.processing")
-                  : transcribingLabel,
-                true,
-              )
-            : listeningRow(open, true)}
-        </div>
+  let body: React.ReactNode;
+  let pillClass: string;
+  if (cancelledToast && state === "idle") {
+    pillClass = "toast";
+    body = <span className="toast-text">{t("overlay.cancelled")}</span>;
+  } else if (busy) {
+    pillClass = "busy";
+    body = (
+      <div className="dots" aria-label={t("overlay.processing")}>
+        <i />
+        <i />
+        <i />
       </div>
     );
+  } else if (dictating) {
+    pillClass = "live";
+    body = (
+      <>
+        <button
+          className="round ghost"
+          aria-label={t("overlay.tip.cancel")}
+          onClick={cancel}
+          onMouseEnter={() => setTip("cancel")}
+          onMouseLeave={() => setTip(null)}
+        >
+          <X size={14} strokeWidth={2.6} />
+        </button>
+        {waveform}
+        <button
+          className="round go"
+          aria-label={t("overlay.tip.finish")}
+          onClick={() => commands.toggleDictationFromOverlay()}
+          onMouseEnter={() => setTip("finish")}
+          onMouseLeave={() => setTip(null)}
+        >
+          <Check size={15} strokeWidth={3} />
+        </button>
+      </>
+    );
+  } else if (expanded) {
+    pillClass = "open";
+    body = (
+      <>
+        <button
+          className="round go"
+          aria-label={t("overlay.tip.dictate", { shortcut })}
+          onClick={() => commands.toggleDictationFromOverlay()}
+        >
+          <Mic size={15} strokeWidth={2.4} />
+        </button>
+        <button
+          className="chip"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {language
+            ? (LANGUAGE_CHIPS[language] ?? language)
+            : t("overlay.menu.auto")}
+        </button>
+      </>
+    );
+  } else {
+    pillClass = "rest";
+    body = null;
   }
-
-  // ---- Minimal overlay: exactly one row at a time — waveform (recording), or a
-  // spinner + label (transcribing / processing). Never both. The pill animates its
-  // width between them; the cancel button is in both rows so it stays put.
-  const working = state === "transcribing" || state === "processing";
-  const workLabel =
-    state === "processing" ? t("overlay.processing") : transcribingLabel;
 
   return (
     <div
       dir={direction}
-      className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      className={`stage ${position} ${isVisible ? "show" : ""}`}
     >
       <div
-        className={`scard compact ${working && isVisible ? "cworking" : ""}`}
+        ref={hotRef}
+        className="hot"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (state === "idle") setMenuOpen((open) => !open);
+        }}
       >
-        {working ? workingRow(workLabel, true) : listeningRow(false, true)}
+        {menu}
+        {tipText && !menuOpen && <div className="tip">{tipText}</div>}
+        <div className={`pill ${pillClass}`}>{body}</div>
       </div>
     </div>
   );

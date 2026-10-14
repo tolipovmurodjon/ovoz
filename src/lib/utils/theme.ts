@@ -47,7 +47,7 @@ export const getStoredTheme = (): Theme => {
   } catch {
     // ignore
   }
-  return "system";
+  return "light";
 };
 
 /** Apply the persisted theme from AppSettings (the source of truth). */
@@ -55,7 +55,7 @@ export const syncThemeFromSettings = async (): Promise<void> => {
   try {
     const result = await commands.getAppSettings();
     if (result.status === "ok") {
-      applyTheme(result.data.theme ?? "system");
+      applyTheme(result.data.theme ?? "light");
     }
   } catch (e) {
     console.warn("Failed to sync theme from settings:", e);

@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Kies een transcriptiemodel om aan de slag te gaan",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Compatibele modellen",
     "downloadModelsTitle": "Beschikbaar voor download",
     "showAllModels": "Toon alle {{total}} modellen",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Model selecteren mislukt"
+      "selectModel": "Model selecteren mislukt",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Machtigingen vereist",
@@ -127,6 +130,7 @@
     "active": "Actief",
     "switching": "Wisselen...",
     "noModelsAvailable": "Geen modellen beschikbaar",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Verifiëren van {{modelName}}...",
     "verifyingGeneric": "Verifiëren...",
     "extracting": "Uitpakken van {{modelName}}...",
@@ -166,19 +170,30 @@
       },
       "keyStatus": {
         "found": "API key found in ELEVENLABS_API_KEY",
-        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app"
+        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app",
+        "saved": "Key saved in Sadomi"
       },
       "language": {
         "title": "Main language",
-        "description": "Language code of what you mostly speak, for example uz. Leave empty to auto-detect, which is poor for Uzbek.",
-        "placeholder": "uz"
+        "description": "Language code of what you mostly speak, for example en. Leave empty to auto-detect, which is poor for Uzbek.",
+        "placeholder": "en",
+        "auto": "Auto"
       },
       "secondaryLanguages": {
         "title": "Other languages you mix in",
-        "description": "Comma-separated language codes you switch into, for example en, ru.",
-        "placeholder": "en, ru"
+        "description": "Comma-separated language codes you switch into, for example uz, ru.",
+        "placeholder": "uz, ru"
       },
-      "fallbackNote": "When the cloud fails, the app falls back to the selected local model."
+      "fallbackNote": "When the cloud fails, the app falls back to the selected local model.",
+      "apiKey": {
+        "title": "ElevenLabs API key",
+        "placeholder": "Paste a new key",
+        "save": "Save",
+        "remove": "Remove",
+        "saveFailed": "The key could not be saved. Try again.",
+        "change": "Change",
+        "cancel": "Cancel"
+      }
     },
     "general": {
       "title": "Algemeen",
@@ -743,7 +758,21 @@
   "overlay": {
     "transcribing": "Transcriberen...",
     "processing": "Verwerken...",
-    "loadingModel": "Model laden..."
+    "loadingModel": "Model laden...",
+    "cancelled": "Cancelled",
+    "tip": {
+      "dictate": "Click or hold {{shortcut}} to dictate",
+      "finish": "Finish and paste",
+      "cancel": "Cancel"
+    },
+    "menu": {
+      "language": "Dictation language",
+      "auto": "Auto",
+      "pasteLast": "Paste last transcript",
+      "history": "Transcript history",
+      "settings": "Settings",
+      "hideHour": "Hide for 1 hour"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blokkeert mogelijk 1 sneltoets",

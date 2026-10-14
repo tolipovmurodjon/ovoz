@@ -6,6 +6,18 @@ import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { Input } from "../../ui/Input";
+import { Button } from "../../ui/Button";
+import {
+  MAIN_LANGUAGE_CHOICES,
+  secondaryAfterSwitch,
+} from "@/lib/utils/dictationLanguages";
+
+// Each language in its own name, never translated.
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English",
+  uz: "Oʻzbek",
+  ru: "Русский",
+};
 
 const normalizeLanguageCode = (text: string) => text.trim().toLowerCase();
 
@@ -22,46 +34,63 @@ export const CloudTranscriptionCard: React.FC = () => {
   const { getSetting, updateSetting, isUpdating } = useSettings();
   // null until the backend answers; the status line stays hidden meanwhile.
   const [keyPresent, setKeyPresent] = useState<boolean | null>(null);
+  const [keySaved, setKeySaved] = useState(false);
+  const [keyDraft, setKeyDraft] = useState("");
+  const [keyError, setKeyError] = useState(false);
+  // A key that is already set shows as connected; the box opens on "Change".
+  const [editingKey, setEditingKey] = useState(false);
 
   const enabled = getSetting("cloud_stt_enabled") ?? true;
-  const language = getSetting("cloud_stt_language") ?? "uz";
-  const secondaryLanguagesText = (
-    getSetting("cloud_stt_secondary_languages") ?? ["en"]
-  ).join(", ");
+  const language = getSetting("cloud_stt_language") ?? "en";
+  const secondaryLanguages = getSetting("cloud_stt_secondary_languages") ?? [
+    "uz",
+  ];
+  const secondaryLanguagesText = secondaryLanguages.join(", ");
 
-  // The inputs keep a draft and save on blur, so typing "en," does not get
+  // The input keeps a draft and saves on blur, so typing "en," does not get
   // rewritten under the cursor by the parsed list.
-  const [languageDraft, setLanguageDraft] = useState(language);
   const [secondaryDraft, setSecondaryDraft] = useState(secondaryLanguagesText);
 
-  useEffect(() => setLanguageDraft(language), [language]);
   useEffect(
     () => setSecondaryDraft(secondaryLanguagesText),
     [secondaryLanguagesText],
   );
 
-  // The key comes from an environment variable, so it cannot change while the
-  // app runs: one check on mount is enough.
-  useEffect(() => {
-    commands
-      .isCloudSttKeyPresent()
-      .then(setKeyPresent)
+  const refreshKeyStatus = () =>
+    Promise.all([
+      commands.isCloudSttKeyPresent(),
+      commands.isCloudSttKeySaved(),
+    ])
+      .then(([present, saved]) => {
+        setKeyPresent(present);
+        setKeySaved(saved);
+      })
       .catch((error) =>
         console.error("Failed to check the ElevenLabs key:", error),
       );
+
+  useEffect(() => {
+    refreshKeyStatus();
   }, []);
 
-  const saveLanguage = () => {
-    const normalized = normalizeLanguageCode(languageDraft);
-    // Empty means auto-detect; anything else must be a real code.
-    if (normalized !== "" && !isLanguageCode(normalized)) {
-      setLanguageDraft(language);
-      return;
+  // The key goes one way: typed here, saved in Rust, never shown again.
+  const saveKey = async (key: string) => {
+    const result = await commands.saveCloudSttApiKey(key);
+    setKeyError(result.status === "error");
+    if (result.status === "ok") {
+      setKeyDraft("");
+      setEditingKey(false);
     }
-    setLanguageDraft(normalized);
-    if (normalized !== language) {
-      updateSetting("cloud_stt_language", normalized);
-    }
+    await refreshKeyStatus();
+  };
+
+  const chooseMainLanguage = (next: string) => {
+    if (next === language) return;
+    updateSetting("cloud_stt_language", next);
+    updateSetting(
+      "cloud_stt_secondary_languages",
+      secondaryAfterSwitch(language, next, secondaryLanguages),
+    );
   };
 
   const saveSecondaryLanguages = () => {
@@ -90,13 +119,93 @@ export const CloudTranscriptionCard: React.FC = () => {
         descriptionMode="tooltip"
         grouped={true}
       />
-      {keyPresent !== null && (
-        <div className="px-4 p-2 text-sm text-mid-gray">
-          {keyPresent
-            ? t("settings.cloudStt.keyStatus.found")
-            : t("settings.cloudStt.keyStatus.missing")}
+      <div className="px-4 py-3 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">
+              {t("settings.cloudStt.apiKey.title")}
+            </div>
+            {keyPresent !== null && (
+              <div
+                className={`text-xs ${keyPresent ? "text-text/70" : "text-error"}`}
+              >
+                {keySaved
+                  ? t("settings.cloudStt.keyStatus.saved")
+                  : keyPresent
+                    ? t("settings.cloudStt.keyStatus.found")
+                    : t("settings.cloudStt.keyStatus.missing")}
+              </div>
+            )}
+          </div>
+          {keyPresent && !editingKey && (
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="text-sm tracking-widest text-text/60"
+              >
+                ••••••••
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setEditingKey(true)}
+              >
+                {t("settings.cloudStt.apiKey.change")}
+              </Button>
+              {keySaved && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => saveKey("")}
+                >
+                  {t("settings.cloudStt.apiKey.remove")}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+        {(keyPresent === false || editingKey) && (
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (keyDraft.trim()) saveKey(keyDraft);
+            }}
+          >
+            <Input
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              className="flex-1"
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              placeholder={t("settings.cloudStt.apiKey.placeholder")}
+              variant="compact"
+            />
+            <Button type="submit" size="sm" disabled={!keyDraft.trim()}>
+              {t("settings.cloudStt.apiKey.save")}
+            </Button>
+            {editingKey && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setEditingKey(false);
+                  setKeyDraft("");
+                }}
+              >
+                {t("settings.cloudStt.apiKey.cancel")}
+              </Button>
+            )}
+          </form>
+        )}
+        {keyError && (
+          <div className="text-xs text-error">
+            {t("settings.cloudStt.apiKey.saveFailed")}
+          </div>
+        )}
+      </div>
       <SettingContainer
         title={t("settings.cloudStt.language.title")}
         description={t("settings.cloudStt.language.description")}
@@ -104,17 +213,30 @@ export const CloudTranscriptionCard: React.FC = () => {
         grouped={true}
         disabled={!enabled}
       >
-        <Input
-          type="text"
-          className="max-w-40"
-          value={languageDraft}
-          onChange={(e) => setLanguageDraft(e.target.value)}
-          onBlur={saveLanguage}
-          onKeyDown={blurOnEnter}
-          placeholder={t("settings.cloudStt.language.placeholder")}
-          variant="compact"
-          disabled={!enabled || isUpdating("cloud_stt_language")}
-        />
+        <div
+          role="radiogroup"
+          className="flex border-2 border-text rounded-lg overflow-hidden"
+        >
+          {MAIN_LANGUAGE_CHOICES.map((code) => (
+            <button
+              key={code || "auto"}
+              type="button"
+              role="radio"
+              aria-checked={language === code}
+              disabled={!enabled || isUpdating("cloud_stt_language")}
+              onClick={() => chooseMainLanguage(code)}
+              className={`px-2.5 py-1 text-xs font-semibold border-e-2 border-text last:border-e-0 transition-colors duration-150 cursor-pointer disabled:cursor-not-allowed ${
+                language === code
+                  ? "bg-logo-primary text-ink"
+                  : "bg-surface hover:bg-text/5"
+              }`}
+            >
+              {code
+                ? LANGUAGE_NAMES[code]
+                : t("settings.cloudStt.language.auto")}
+            </button>
+          ))}
+        </div>
       </SettingContainer>
       <SettingContainer
         title={t("settings.cloudStt.secondaryLanguages.title")}

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { commands } from "@/bindings";
 import { getTranslatedModelName } from "../../lib/utils/modelTranslation";
 import { useModelStore } from "../../stores/modelStore";
+import { useSettings } from "../../hooks/useSettings";
 import ModelStatusButton from "./ModelStatusButton";
 import ModelDropdown from "./ModelDropdown";
 import DownloadProgressDisplay from "./DownloadProgressDisplay";
@@ -36,6 +37,13 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     selectModel,
   } = useModelStore();
 
+  const { getSetting } = useSettings();
+  // The key comes from an environment variable, so one check on mount is enough.
+  const [cloudKeyPresent, setCloudKeyPresent] = useState(false);
+  // With the cloud engine on, having no local model is a normal state.
+  const usesCloudOnly =
+    cloudKeyPresent && (getSetting("cloud_stt_enabled") ?? true);
+
   const [modelStatus, setModelStatus] = useState<ModelStatus>("unloaded");
   const [modelError, setModelError] = useState<string | null>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -45,6 +53,15 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const displayModelId = pendingModelId || currentModel;
+
+  useEffect(() => {
+    commands
+      .isCloudSttKeyPresent()
+      .then(setCloudKeyPresent)
+      .catch((error) =>
+        console.error("Failed to check the ElevenLabs key:", error),
+      );
+  }, []);
 
   // Check model status when currentModel changes
   useEffect(() => {
@@ -226,7 +243,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
           ? getTranslatedModelName(currentModelInfo, t)
           : t("modelSelector.modelUnloaded");
       case "none":
-        return t("modelSelector.noModelDownloadRequired");
+        return usesCloudOnly
+          ? t("modelSelector.cloudNoLocalModel")
+          : t("modelSelector.noModelDownloadRequired");
       default:
         return currentModelInfo
           ? getTranslatedModelName(currentModelInfo, t)
@@ -239,6 +258,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     if (Object.keys(verifyingModels).length > 0) return "verifying";
     if (Object.keys(extractingModels).length > 0) return "extracting";
     if (Object.keys(downloadProgress).length > 0) return "downloading";
+    if (modelStatus === "none" && usesCloudOnly) return "unloaded";
     return modelStatus;
   };
 

@@ -170,6 +170,18 @@ function App() {
   // The technical error detail is logged to handy.log on the Rust side
   // (see actions.rs `error!("Failed to paste transcription: ...")`),
   // so we show a localized, user-friendly message here instead of the raw error.
+  // The overlay menu can open the window on one section (e.g. history).
+  useEffect(() => {
+    const unlisten = listen<string>("open-section", (event) => {
+      if (event.payload in SECTIONS_CONFIG) {
+        setCurrentSection(event.payload as SidebarSection);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   useEffect(() => {
     const unlisten = listen("paste-error", () => {
       toast.error(t("errors.pasteFailedTitle"), {

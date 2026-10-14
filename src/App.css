@@ -7,6 +7,8 @@
   --color-text: var(--color-text);
   --color-background: var(--color-background);
   --color-background-ui: var(--color-background-ui);
+  --color-surface: var(--color-surface);
+  --color-ink: var(--color-ink);
   --color-logo-primary: var(--color-logo-primary);
   --color-logo-stroke: var(--color-logo-stroke);
   --color-text-stroke: var(--color-text-stroke);

@@ -1,4 +1,4 @@
-name: "Ovoz Windows build"
+name: "Sadomi Windows build"
 
 # Unsigned Windows x64 installer for the fork. Runs by hand, or when a commit
 # on a feat/ branch has [build] in its message (a full build takes ~25 min).
@@ -18,6 +18,6 @@ jobs:
       target: "x86_64-pc-windows-msvc"
       build-args: ""
       sign-binaries: false
-      asset-prefix: "ovoz"
+      asset-prefix: "sadomi"
       upload-artifacts: true
     secrets: inherit

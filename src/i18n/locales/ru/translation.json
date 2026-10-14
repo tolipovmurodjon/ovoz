@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "Для начала выберите модель транскрипции",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "Совместимые модели",
     "downloadModelsTitle": "Доступны для загрузки",
     "showAllModels": "Показать все модели ({{total}})",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "Не удалось выбрать модель"
+      "selectModel": "Не удалось выбрать модель",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "Требуются разрешения",
@@ -126,6 +129,7 @@
     "active": "Активный",
     "switching": "Переключение...",
     "noModelsAvailable": "Нет доступных моделей",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "Проверка {{modelName}}...",
     "verifyingGeneric": "Проверка...",
     "extracting": "Извлечение {{modelName}}...",
@@ -166,19 +170,30 @@
       },
       "keyStatus": {
         "found": "API key found in ELEVENLABS_API_KEY",
-        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app"
+        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app",
+        "saved": "Key saved in Sadomi"
       },
       "language": {
         "title": "Main language",
-        "description": "Language code of what you mostly speak, for example uz. Leave empty to auto-detect, which is poor for Uzbek.",
-        "placeholder": "uz"
+        "description": "Language code of what you mostly speak, for example en. Leave empty to auto-detect, which is poor for Uzbek.",
+        "placeholder": "en",
+        "auto": "Auto"
       },
       "secondaryLanguages": {
         "title": "Other languages you mix in",
-        "description": "Comma-separated language codes you switch into, for example en, ru.",
-        "placeholder": "en, ru"
+        "description": "Comma-separated language codes you switch into, for example uz, ru.",
+        "placeholder": "uz, ru"
       },
-      "fallbackNote": "When the cloud fails, the app falls back to the selected local model."
+      "fallbackNote": "When the cloud fails, the app falls back to the selected local model.",
+      "apiKey": {
+        "title": "ElevenLabs API key",
+        "placeholder": "Paste a new key",
+        "save": "Save",
+        "remove": "Remove",
+        "saveFailed": "The key could not be saved. Try again.",
+        "change": "Change",
+        "cancel": "Cancel"
+      }
     },
     "models": {
       "title": "Модели транскрипции",
@@ -740,7 +755,21 @@
   "overlay": {
     "transcribing": "Расшифровка...",
     "processing": "Обработка...",
-    "loadingModel": "Загрузка модели..."
+    "loadingModel": "Загрузка модели...",
+    "cancelled": "Cancelled",
+    "tip": {
+      "dictate": "Click or hold {{shortcut}} to dictate",
+      "finish": "Finish and paste",
+      "cancel": "Cancel"
+    },
+    "menu": {
+      "language": "Dictation language",
+      "auto": "Auto",
+      "pasteLast": "Paste last transcript",
+      "history": "Transcript history",
+      "settings": "Settings",
+      "hideHour": "Hide for 1 hour"
+    }
   },
   "whatsNew": {
     "title": "Новое в Handy v{{version}}"

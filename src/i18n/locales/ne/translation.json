@@ -20,6 +20,8 @@
   },
   "onboarding": {
     "subtitle": "सुरु गर्न, एउटा ट्रान्सक्रिप्सन मोडेल छान्नुहोस्",
+    "continueWithCloud": "Continue with ElevenLabs cloud, no download",
+    "continueWithCloudHint": "You can still download a local model later as an offline fallback.",
     "existingModelsTitle": "मिल्दा मोडेलहरू",
     "downloadModelsTitle": "डाउनलोड गर्न उपलब्ध",
     "showAllModels": "सबै {{total}} मोडेलहरू देखाउनुहोस्",
@@ -97,7 +99,8 @@
       }
     },
     "errors": {
-      "selectModel": "मोडेल चयन गर्न सकिएन"
+      "selectModel": "मोडेल चयन गर्न सकिएन",
+      "continueWithCloud": "Failed to continue with the cloud engine"
     },
     "permissions": {
       "title": "अनुमतिहरू आवश्यक छन्",
@@ -127,6 +130,7 @@
     "active": "सक्रिय",
     "switching": "बदलिँदैछ...",
     "noModelsAvailable": "कुनै मोडेल उपलब्ध छैन",
+    "cloudNoLocalModel": "ElevenLabs cloud",
     "verifying": "{{modelName}} प्रमाणित गरिँदैछ...",
     "verifyingGeneric": "प्रमाणित गरिँदैछ...",
     "extracting": "{{modelName}} एक्स्ट्र्याक्ट गरिँदैछ...",
@@ -166,19 +170,30 @@
       },
       "keyStatus": {
         "found": "API key found in ELEVENLABS_API_KEY",
-        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app"
+        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app",
+        "saved": "Key saved in Sadomi"
       },
       "language": {
         "title": "Main language",
-        "description": "Language code of what you mostly speak, for example uz. Leave empty to auto-detect, which is poor for Uzbek.",
-        "placeholder": "uz"
+        "description": "Language code of what you mostly speak, for example en. Leave empty to auto-detect, which is poor for Uzbek.",
+        "placeholder": "en",
+        "auto": "Auto"
       },
       "secondaryLanguages": {
         "title": "Other languages you mix in",
-        "description": "Comma-separated language codes you switch into, for example en, ru.",
-        "placeholder": "en, ru"
+        "description": "Comma-separated language codes you switch into, for example uz, ru.",
+        "placeholder": "uz, ru"
       },
-      "fallbackNote": "When the cloud fails, the app falls back to the selected local model."
+      "fallbackNote": "When the cloud fails, the app falls back to the selected local model.",
+      "apiKey": {
+        "title": "ElevenLabs API key",
+        "placeholder": "Paste a new key",
+        "save": "Save",
+        "remove": "Remove",
+        "saveFailed": "The key could not be saved. Try again.",
+        "change": "Change",
+        "cancel": "Cancel"
+      }
     },
     "general": {
       "title": "सामान्य",
@@ -743,7 +758,21 @@
   "overlay": {
     "transcribing": "ट्रान्सक्राइब गरिँदैछ...",
     "processing": "प्रशोधन गरिँदैछ...",
-    "loadingModel": "मोडेल लोड गरिँदैछ..."
+    "loadingModel": "मोडेल लोड गरिँदैछ...",
+    "cancelled": "Cancelled",
+    "tip": {
+      "dictate": "Click or hold {{shortcut}} to dictate",
+      "finish": "Finish and paste",
+      "cancel": "Cancel"
+    },
+    "menu": {
+      "language": "Dictation language",
+      "auto": "Auto",
+      "pasteLast": "Paste last transcript",
+      "history": "Transcript history",
+      "settings": "Settings",
+      "hideHour": "Hide for 1 hour"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} ले 1 सर्टकट रोकिरहेको हुन सक्छ",
