@@ -37,6 +37,8 @@ export const CloudTranscriptionCard: React.FC = () => {
   const [keySaved, setKeySaved] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
   const [keyError, setKeyError] = useState(false);
+  // A key that is already set shows as connected; the box opens on "Change".
+  const [editingKey, setEditingKey] = useState(false);
 
   const enabled = getSetting("cloud_stt_enabled") ?? true;
   const language = getSetting("cloud_stt_language") ?? "en";
@@ -75,7 +77,10 @@ export const CloudTranscriptionCard: React.FC = () => {
   const saveKey = async (key: string) => {
     const result = await commands.saveCloudSttApiKey(key);
     setKeyError(result.status === "error");
-    if (result.status === "ok") setKeyDraft("");
+    if (result.status === "ok") {
+      setKeyDraft("");
+      setEditingKey(false);
+    }
     await refreshKeyStatus();
   };
 
@@ -132,33 +137,69 @@ export const CloudTranscriptionCard: React.FC = () => {
               </div>
             )}
           </div>
-          {keySaved && (
-            <Button variant="secondary" size="sm" onClick={() => saveKey("")}>
-              {t("settings.cloudStt.apiKey.remove")}
-            </Button>
+          {keyPresent && !editingKey && (
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="text-sm tracking-widest text-text/60"
+              >
+                ••••••••
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setEditingKey(true)}
+              >
+                {t("settings.cloudStt.apiKey.change")}
+              </Button>
+              {keySaved && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => saveKey("")}
+                >
+                  {t("settings.cloudStt.apiKey.remove")}
+                </Button>
+              )}
+            </div>
           )}
         </div>
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (keyDraft.trim()) saveKey(keyDraft);
-          }}
-        >
-          <Input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            className="flex-1"
-            value={keyDraft}
-            onChange={(e) => setKeyDraft(e.target.value)}
-            placeholder={t("settings.cloudStt.apiKey.placeholder")}
-            variant="compact"
-          />
-          <Button type="submit" size="sm" disabled={!keyDraft.trim()}>
-            {t("settings.cloudStt.apiKey.save")}
-          </Button>
-        </form>
+        {(keyPresent === false || editingKey) && (
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (keyDraft.trim()) saveKey(keyDraft);
+            }}
+          >
+            <Input
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              className="flex-1"
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              placeholder={t("settings.cloudStt.apiKey.placeholder")}
+              variant="compact"
+            />
+            <Button type="submit" size="sm" disabled={!keyDraft.trim()}>
+              {t("settings.cloudStt.apiKey.save")}
+            </Button>
+            {editingKey && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setEditingKey(false);
+                  setKeyDraft("");
+                }}
+              >
+                {t("settings.cloudStt.apiKey.cancel")}
+              </Button>
+            )}
+          </form>
+        )}
         {keyError && (
           <div className="text-xs text-error">
             {t("settings.cloudStt.apiKey.saveFailed")}

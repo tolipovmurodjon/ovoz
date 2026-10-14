@@ -190,7 +190,9 @@
         "placeholder": "Paste a new key",
         "save": "Save",
         "remove": "Remove",
-        "saveFailed": "The key could not be saved. Try again."
+        "saveFailed": "The key could not be saved. Try again.",
+        "change": "Change",
+        "cancel": "Cancel"
       }
     },
     "general": {
