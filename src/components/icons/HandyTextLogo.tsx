@@ -1,11 +1,10 @@
 import React from "react";
 
-// The Sadomi wordmark ("sado" = voice, "mi?" = the Uzbek question particle).
+// The Sadomi wordmark ("sado" = voice, "mi" = the Uzbek question particle).
 // Set as live text until a drawn logo exists; textLength pins its width so the
 // layout does not depend on which system font the machine has.
 // A brand name, never translated.
 const WORDMARK = "sadomi";
-const MARK = "?";
 
 const HandyTextLogo = ({
   width,
@@ -21,7 +20,7 @@ const HandyTextLogo = ({
       width={width}
       height={height}
       className={className}
-      viewBox="0 0 930 328"
+      viewBox="0 0 803 328"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
@@ -35,11 +34,10 @@ const HandyTextLogo = ({
         fontSize="220"
         fontWeight="800"
         letterSpacing="-6"
-        textLength="890"
+        textLength="763"
         lengthAdjust="spacingAndGlyphs"
       >
         {WORDMARK}
-        <tspan className="fill-background-ui">{MARK}</tspan>
       </text>
     </svg>
   );
