@@ -1,11 +1,12 @@
 pub mod audio;
 pub mod history;
 pub mod models;
+pub mod overlay;
 pub mod transcription;
 
 use crate::settings::{
-    elevenlabs_api_key_from_env, get_settings, update_checks_forced_disabled, write_settings,
-    AppSettings, LogLevel,
+    available_elevenlabs_api_key, get_settings, save_elevenlabs_api_key, saved_elevenlabs_api_key,
+    update_checks_forced_disabled, write_settings, AppSettings, LogLevel,
 };
 use crate::utils::cancel_current_operation;
 use tauri::{AppHandle, Manager};
@@ -29,12 +30,26 @@ pub fn is_update_checks_locked() -> bool {
     update_checks_forced_disabled()
 }
 
-/// Whether `ELEVENLABS_API_KEY` is set. Returns a bool only, so the key itself
-/// never crosses into the webview.
+/// Whether a key is saved in settings or set in `ELEVENLABS_API_KEY`. Returns
+/// a bool only, so the key itself never crosses into the webview.
 #[tauri::command]
 #[specta::specta]
 pub fn is_cloud_stt_key_present() -> bool {
-    elevenlabs_api_key_from_env().is_some()
+    available_elevenlabs_api_key().is_some()
+}
+
+/// Whether the key comes from settings (true) rather than the environment.
+#[tauri::command]
+#[specta::specta]
+pub fn is_cloud_stt_key_saved() -> bool {
+    saved_elevenlabs_api_key().is_some()
+}
+
+/// Write-only: the webview can set or clear the key but never read it back.
+#[tauri::command]
+#[specta::specta]
+pub fn save_cloud_stt_api_key(app: AppHandle, key: String) -> Result<(), String> {
+    save_elevenlabs_api_key(&app, &key)
 }
 
 /// Ends onboarding without a local model, for users who dictate through the
@@ -43,8 +58,8 @@ pub fn is_cloud_stt_key_present() -> bool {
 #[tauri::command]
 #[specta::specta]
 pub fn complete_onboarding_without_model(app: AppHandle) -> Result<(), String> {
-    if elevenlabs_api_key_from_env().is_none() {
-        return Err("ELEVENLABS_API_KEY is not set".to_string());
+    if available_elevenlabs_api_key().is_none() {
+        return Err("No ElevenLabs key is saved or set".to_string());
     }
     let mut settings = get_settings(&app);
     settings.onboarding_completed = true;

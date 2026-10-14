@@ -210,6 +210,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // Apply accelerator preferences before any model loads
     managers::transcription::apply_accelerator_settings(app_handle);
 
+    // Before the shortcuts register, so the first press already sees the key.
+    settings::load_saved_elevenlabs_api_key(app_handle);
+
     // Add managers to Tauri's managed state
     app_handle.manage(recording_manager.clone());
     app_handle.manage(model_manager.clone());
@@ -383,6 +386,15 @@ fn trigger_update_check(app: AppHandle) -> Result<(), String> {
 fn show_main_window_command(app: AppHandle) -> Result<(), String> {
     show_main_window(&app);
     Ok(())
+}
+
+/// Opens the main window on one sidebar section, e.g. "history".
+#[tauri::command]
+#[specta::specta]
+fn show_main_window_section(app: AppHandle, section: String) -> Result<(), String> {
+    show_main_window(&app);
+    app.emit_to("main", "open-section", section)
+        .map_err(|e| e.to_string())
 }
 
 /// Convert an unexpected panic on the headless worker into a normal CLI
@@ -720,10 +732,17 @@ pub fn run(cli_args: CliArgs) {
             secure_input::run_keyboard_diagnostic,
             trigger_update_check,
             show_main_window_command,
+            show_main_window_section,
+            commands::overlay::set_overlay_hot_area,
+            commands::overlay::toggle_dictation_from_overlay,
+            commands::overlay::snooze_overlay,
+            commands::overlay::paste_last_transcript,
             commands::cancel_operation,
             commands::is_portable,
             commands::is_update_checks_locked,
             commands::is_cloud_stt_key_present,
+            commands::is_cloud_stt_key_saved,
+            commands::save_cloud_stt_api_key,
             commands::complete_onboarding_without_model,
             commands::get_app_dir_path,
             commands::get_app_settings,

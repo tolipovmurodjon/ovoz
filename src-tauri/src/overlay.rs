@@ -43,24 +43,12 @@ tauri_panel! {
 // On Windows these sizes are additionally multiplied by the accessibility text
 // scale (see windows_text_scale_factor), which WebView2 applies as a zoom.
 //
-// Compact overlay (Minimal / transcribing / processing): the 40h pill animates
-// width from 172 (--ov-rest-w) to 216 (--ov-work-w) and expands from center, so
-// the window must fit the widest state plus a little slack.
-const OVERLAY_WIDTH: f64 = 256.0;
-const OVERLAY_HEIGHT: f64 = 50.0;
-
-// Actual is 394x118, just a little extra
-const OVERLAY_STREAM_WIDTH: f64 = 400.0;
-const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
-
-/// Overlay window size (logical) for a given UI state.
-fn overlay_dimensions(state: &str) -> (f64, f64) {
-    if state == "streaming" {
-        (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
-    } else {
-        (OVERLAY_WIDTH, OVERLAY_HEIGHT)
-    }
-}
+// Sadomi uses one fixed window for every state: the resting pill, the hover
+// controls, the recording pill and the right-click menu all fit inside it.
+// Clicks pass through everywhere except the area the page reports as its own
+// (see `set_hot_area`), so the empty part never blocks the app underneath.
+const OVERLAY_WIDTH: f64 = 320.0;
+const OVERLAY_HEIGHT: f64 = 300.0;
 
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
@@ -73,7 +61,11 @@ const OVERLAY_TOP_OFFSET: f64 = 4.0;
 #[cfg(target_os = "macos")]
 const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
+// Windows measures from the work area (above the taskbar), so a small gap is
+// enough; Linux measures from the screen edge.
+#[cfg(target_os = "windows")]
+const OVERLAY_BOTTOM_OFFSET: f64 = 8.0;
+#[cfg(target_os = "linux")]
 const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
 
 /// Configures the edge and offset of a GTK layer surface. gtk-layer-shell
@@ -286,9 +278,6 @@ fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Optio
     Some((size.width as f64 / scale, size.height as f64 / scale))
 }
 
-#[cfg(target_os = "windows")]
-static WINDOWS_OVERLAY_IS_STREAMING: AtomicBool = AtomicBool::new(false);
-
 /// Windows accessibility text size (Settings > Accessibility > Text size), a
 /// separate axis from display scaling that WebView2 applies as a document zoom.
 #[cfg(target_os = "windows")]
@@ -347,9 +336,11 @@ fn place_windows_overlay(
     let monitor = get_monitor_with_cursor(app_handle)
         .ok_or_else(|| "failed to determine the monitor containing the cursor".to_string())?;
     let text_scale = windows_text_scale_factor();
+    // The work area excludes the taskbar wherever it is docked.
+    let work_area = monitor.work_area();
     let (x, y, width, height) = windows_overlay_bounds(
-        *monitor.position(),
-        *monitor.size(),
+        work_area.position,
+        work_area.size,
         monitor.scale_factor(),
         text_scale,
         logical_width,
@@ -439,6 +430,9 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
                 }
             }
 
+            // Click-through until the pointer reaches the pill.
+            let _ = window.set_ignore_cursor_events(true);
+            spawn_pointer_watch(app_handle.clone());
             debug!("Recording overlay window created successfully (hidden)");
         }
         Err(e) => {
@@ -508,9 +502,9 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
 }
 
 fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
-    // Size the overlay for this state (compact vs. streaming), then position it.
-    let (width, height) = overlay_dimensions(state);
+    let (width, height) = (OVERLAY_WIDTH, OVERLAY_HEIGHT);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        OVERLAY_SHOWS_IDLE.store(state == "idle", Ordering::SeqCst);
         // Invalidate any delayed hide still in flight from a previous session
         // (see `hide_recording_overlay`).
         OVERLAY_SHOW_GENERATION.fetch_add(1, Ordering::SeqCst);
@@ -537,8 +531,6 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
             #[cfg(not(target_os = "windows"))]
             let _ =
                 overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
-            #[cfg(target_os = "windows")]
-            WINDOWS_OVERLAY_IS_STREAMING.store(state == "streaming", Ordering::Relaxed);
             let size_elapsed = size_started.elapsed();
 
             let pos_started = std::time::Instant::now();
@@ -652,13 +644,9 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 
         #[cfg(target_os = "windows")]
         {
-            let state = if WINDOWS_OVERLAY_IS_STREAMING.load(Ordering::Relaxed) {
-                "streaming"
-            } else {
-                "recording"
-            };
-            let (width, height) = overlay_dimensions(state);
-            if let Err(error) = place_windows_overlay(app_handle, &overlay_window, width, height) {
+            if let Err(error) =
+                place_windows_overlay(app_handle, &overlay_window, OVERLAY_WIDTH, OVERLAY_HEIGHT)
+            {
                 log::error!("Failed to update recording overlay position: {error}");
             }
         }
@@ -690,6 +678,12 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
     // Always hide the overlay regardless of settings - if setting was changed while recording,
     // we still want to hide it properly
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        if idle_pill_enabled() {
+            // Back to the resting pill; the window stays on screen.
+            OVERLAY_SHOWS_IDLE.store(true, Ordering::SeqCst);
+            let _ = overlay_window.emit("hide-overlay", ());
+            return;
+        }
         // Snapshot before doing anything observable, so any show that lands
         // after this point invalidates the delayed hide below.
         let scheduled_at = OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst);
@@ -707,6 +701,128 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
             let _ = window_clone.hide();
         });
     }
+}
+
+// ---- Resting pill (Windows), like Wispr Flow's ----
+//
+// Between dictations the overlay stays on screen as a small pill; pointing at
+// it shows the controls. The window is click-through, and a watcher thread
+// turns clicks on only while the pointer is over the area the page reports.
+
+/// True while the page shows the resting pill (not a dictation state).
+static OVERLAY_SHOWS_IDLE: AtomicBool = AtomicBool::new(false);
+/// "Hide for 1 hour": the resting pill stays away until this time.
+static IDLE_PILL_SNOOZED_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
+/// The page's interactive area in CSS pixels: x, y, width, height.
+static HOT_AREA: std::sync::Mutex<Option<[f64; 4]>> = std::sync::Mutex::new(None);
+
+const POINTER_POLL: std::time::Duration = std::time::Duration::from_millis(40);
+// Settings and snooze change rarely; check them about once a second.
+const RECONCILE_EVERY_POLLS: u32 = 25;
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn idle_pill_enabled() -> bool {
+    cfg!(target_os = "windows")
+        && OVERLAY_ENABLED.load(Ordering::Relaxed)
+        && now_ms() >= IDLE_PILL_SNOOZED_UNTIL_MS.load(Ordering::Relaxed)
+}
+
+/// Hides the resting pill for a while. A dictation still shows its overlay.
+pub fn snooze_idle_pill(app_handle: &AppHandle, minutes: u64) {
+    IDLE_PILL_SNOOZED_UNTIL_MS.store(now_ms() + minutes * 60_000, Ordering::Relaxed);
+    if OVERLAY_SHOWS_IDLE.load(Ordering::SeqCst) {
+        if let Some(window) = app_handle.get_webview_window("recording_overlay") {
+            let _ = window.hide();
+        }
+    }
+}
+
+pub fn set_hot_area(area: Option<[f64; 4]>) {
+    *HOT_AREA.lock().unwrap_or_else(|e| e.into_inner()) = area;
+}
+
+#[cfg(target_os = "windows")]
+fn cursor_physical_position(_app_handle: &AppHandle) -> Option<(i32, i32)> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    let mut point = POINT::default();
+    unsafe { GetCursorPos(&mut point) }.ok()?;
+    Some((point.x, point.y))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn cursor_physical_position(app_handle: &AppHandle) -> Option<(i32, i32)> {
+    input::get_cursor_position(app_handle)
+}
+
+fn pointer_over_hot_area(app_handle: &AppHandle, window: &tauri::webview::WebviewWindow) -> bool {
+    let Some([x, y, width, height]) = *HOT_AREA.lock().unwrap_or_else(|e| e.into_inner()) else {
+        return false;
+    };
+    let (Some((cursor_x, cursor_y)), Ok(origin), Ok(dpi)) = (
+        cursor_physical_position(app_handle),
+        window.outer_position(),
+        window.scale_factor(),
+    ) else {
+        return false;
+    };
+    // WebView2 applies the Windows text size as a zoom on top of the DPI.
+    #[cfg(target_os = "windows")]
+    let scale = dpi * windows_text_scale_factor();
+    #[cfg(not(target_os = "windows"))]
+    let scale = dpi;
+
+    let left = origin.x as f64 + x * scale;
+    let top = origin.y as f64 + y * scale;
+    let (cursor_x, cursor_y) = (cursor_x as f64, cursor_y as f64);
+    cursor_x >= left
+        && cursor_x < left + width * scale
+        && cursor_y >= top
+        && cursor_y < top + height * scale
+}
+
+/// Shows or removes the resting pill when the setting or the snooze changes.
+fn reconcile_idle_pill(app_handle: &AppHandle, window: &tauri::webview::WebviewWindow) {
+    let visible = window.is_visible().unwrap_or(false);
+    if idle_pill_enabled() {
+        if !visible {
+            show_overlay_state(app_handle, "idle");
+        }
+    } else if visible && OVERLAY_SHOWS_IDLE.load(Ordering::SeqCst) {
+        let _ = window.hide();
+    }
+}
+
+fn spawn_pointer_watch(app_handle: AppHandle) {
+    std::thread::spawn(move || {
+        let mut over = false;
+        let mut polls: u32 = 0;
+        loop {
+            std::thread::sleep(POINTER_POLL);
+            let Some(window) = app_handle.get_webview_window("recording_overlay") else {
+                continue;
+            };
+            if polls % RECONCILE_EVERY_POLLS == 0 {
+                reconcile_idle_pill(&app_handle, &window);
+            }
+            polls = polls.wrapping_add(1);
+
+            let now_over =
+                window.is_visible().unwrap_or(false) && pointer_over_hot_area(&app_handle, &window);
+            if now_over != over {
+                over = now_over;
+                let _ = window.set_ignore_cursor_events(!over);
+                let _ = app_handle.emit_to("recording_overlay", "overlay-hover", over);
+            }
+        }
+    });
 }
 
 // Cached "overlay is enabled" flag, kept in sync with overlay_style. Avoids
@@ -824,7 +940,7 @@ mod tests {
                 OVERLAY_HEIGHT,
                 OverlayPosition::Bottom,
             ),
-            (3648, 2025, 384, 75)
+            (3600, 1698, 480, 450)
         );
         assert_eq!(
             windows_overlay_bounds(
@@ -836,7 +952,7 @@ mod tests {
                 OVERLAY_HEIGHT,
                 OverlayPosition::Top,
             ),
-            (3648, 6, 384, 75)
+            (3600, 6, 480, 450)
         );
     }
 
@@ -849,11 +965,11 @@ mod tests {
                 PhysicalSize::new(2560, 1440),
                 1.25,
                 1.0,
-                OVERLAY_STREAM_WIDTH,
-                OVERLAY_STREAM_HEIGHT,
+                OVERLAY_WIDTH,
+                OVERLAY_HEIGHT,
                 OverlayPosition::Bottom,
             ),
-            (-1530, 1040, 500, 150)
+            (-1480, 855, 400, 375)
         );
     }
 
@@ -868,22 +984,22 @@ mod tests {
             monitor_size,
             1.25,
             1.1,
-            OVERLAY_STREAM_WIDTH,
-            OVERLAY_STREAM_HEIGHT,
+            OVERLAY_WIDTH,
+            OVERLAY_HEIGHT,
             OverlayPosition::Bottom,
         );
-        // 400x120 logical at 1.25 DPI x 1.1 text, still centered horizontally.
-        assert_eq!((x, y, width, height), (-1555, 1025, 550, 165));
-        // Bottom edge unchanged from the 1.0 case above (1040 + 150).
-        assert_eq!(y + height, 1190);
+        // 320x300 logical at 1.25 DPI x 1.1 text, still centered horizontally.
+        assert_eq!((x, y, width, height), (-1500, 817, 440, 413));
+        // Bottom edge unchanged from the 1.0 case above (855 + 375).
+        assert_eq!(y + height, 1230);
 
         let (_, top_y, _, _) = windows_overlay_bounds(
             monitor_position,
             monitor_size,
             1.25,
             1.1,
-            OVERLAY_STREAM_WIDTH,
-            OVERLAY_STREAM_HEIGHT,
+            OVERLAY_WIDTH,
+            OVERLAY_HEIGHT,
             OverlayPosition::Top,
         );
         // Top offset rides the DPI scale alone, so the top edge doesn't move.

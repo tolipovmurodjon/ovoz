@@ -567,6 +567,36 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Opens the main window on one sidebar section, e.g. "history".
+ */
+async showMainWindowSection(section: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("show_main_window_section", { section }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The pill's interactive area in CSS pixels of the overlay window. A zero
+ * width or height means none: every click passes through.
+ */
+async setOverlayHotArea(x: number, y: number, width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("set_overlay_hot_area", { x, y, width, height });
+},
+/**
+ * Starts dictation, or finishes it and pastes, as a press of the shortcut.
+ */
+async toggleDictationFromOverlay() : Promise<void> {
+    await TAURI_INVOKE("toggle_dictation_from_overlay");
+},
+async snoozeOverlay(minutes: number) : Promise<void> {
+    await TAURI_INVOKE("snooze_overlay", { minutes });
+},
+async pasteLastTranscript() : Promise<void> {
+    await TAURI_INVOKE("paste_last_transcript");
+},
 async cancelOperation() : Promise<void> {
     await TAURI_INVOKE("cancel_operation");
 },
@@ -577,11 +607,28 @@ async isUpdateChecksLocked() : Promise<boolean> {
     return await TAURI_INVOKE("is_update_checks_locked");
 },
 /**
- * Whether `ELEVENLABS_API_KEY` is set. Returns a bool only, so the key itself
- * never crosses into the webview.
+ * Whether a key is saved in settings or set in `ELEVENLABS_API_KEY`. Returns
+ * a bool only, so the key itself never crosses into the webview.
  */
 async isCloudSttKeyPresent() : Promise<boolean> {
     return await TAURI_INVOKE("is_cloud_stt_key_present");
+},
+/**
+ * Whether the key comes from settings (true) rather than the environment.
+ */
+async isCloudSttKeySaved() : Promise<boolean> {
+    return await TAURI_INVOKE("is_cloud_stt_key_saved");
+},
+/**
+ * Write-only: the webview can set or clear the key but never read it back.
+ */
+async saveCloudSttApiKey(key: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_cloud_stt_api_key", { key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * Ends onboarding without a local model, for users who dictate through the

@@ -4,7 +4,8 @@ import React from "react";
 // Set as live text until a drawn logo exists; textLength pins its width so the
 // layout does not depend on which system font the machine has.
 // A brand name, never translated.
-const WORDMARK = "sadomi?";
+const WORDMARK = "sadomi";
+const MARK = "?";
 
 const HandyTextLogo = ({
   width,
@@ -29,7 +30,7 @@ const HandyTextLogo = ({
       <text
         x="20"
         y="236"
-        className="logo-primary"
+        className="fill-text"
         fontFamily="system-ui, 'Segoe UI', sans-serif"
         fontSize="220"
         fontWeight="800"
@@ -38,6 +39,7 @@ const HandyTextLogo = ({
         lengthAdjust="spacingAndGlyphs"
       >
         {WORDMARK}
+        <tspan className="fill-background-ui">{MARK}</tspan>
       </text>
     </svg>
   );

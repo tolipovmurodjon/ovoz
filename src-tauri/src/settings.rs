@@ -681,8 +681,9 @@ fn default_sound_theme() -> SoundTheme {
     SoundTheme::Marimba
 }
 
+// Sadomi's look is designed light first; dark stays one click away.
 fn default_theme() -> Theme {
-    Theme::System
+    Theme::Light
 }
 
 fn default_post_process_enabled() -> bool {
@@ -1070,16 +1071,68 @@ pub fn elevenlabs_api_key_from_env() -> Option<String> {
         .filter(|key| !key.is_empty())
 }
 
+// Kept outside `AppSettings` so `get_app_settings` never hands the key to the
+// webview. Cached here because `cloud_stt_api_key` has no app handle.
+const ELEVENLABS_KEY_STORE_FIELD: &str = "elevenlabs_api_key";
+static SAVED_ELEVENLABS_KEY: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+fn non_blank(key: &str) -> Option<String> {
+    Some(key.trim().to_string()).filter(|key| !key.is_empty())
+}
+
+pub fn load_saved_elevenlabs_api_key(app: &AppHandle) {
+    let saved = app
+        .store(crate::portable::store_path(SETTINGS_STORE_PATH))
+        .ok()
+        .and_then(|store| store.get(ELEVENLABS_KEY_STORE_FIELD))
+        .and_then(|value| value.as_str().and_then(non_blank));
+    *SAVED_ELEVENLABS_KEY
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = saved;
+}
+
+/// Saves the key typed in settings; a blank key removes it, which falls back to
+/// `ELEVENLABS_API_KEY`.
+pub fn save_elevenlabs_api_key(app: &AppHandle, key: &str) -> Result<(), String> {
+    let store = app
+        .store(crate::portable::store_path(SETTINGS_STORE_PATH))
+        .map_err(|e| format!("Failed to open the settings store: {e}"))?;
+    let key = non_blank(key);
+    match &key {
+        Some(key) => store.set(ELEVENLABS_KEY_STORE_FIELD, serde_json::json!(key)),
+        None => {
+            store.delete(ELEVENLABS_KEY_STORE_FIELD);
+        }
+    }
+    *SAVED_ELEVENLABS_KEY
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = key;
+    Ok(())
+}
+
+pub fn saved_elevenlabs_api_key() -> Option<String> {
+    SAVED_ELEVENLABS_KEY
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+/// The key the app would use with the cloud toggle on: the saved one first,
+/// then the environment.
+pub fn available_elevenlabs_api_key() -> Option<String> {
+    saved_elevenlabs_api_key().or_else(elevenlabs_api_key_from_env)
+}
+
 impl AppSettings {
     /// The ElevenLabs key when the cloud path is on: the setting is enabled and
-    /// `ELEVENLABS_API_KEY` holds a non-blank value. This is the one place that
-    /// decides, so recording start and the stream worker cannot disagree. The key
-    /// is read from the environment on each call and never stored or logged.
+    /// a key is saved in settings or set in `ELEVENLABS_API_KEY`. This is the one
+    /// place that decides, so recording start and the stream worker cannot
+    /// disagree. The key is never logged.
     pub fn cloud_stt_api_key(&self) -> Option<String> {
         if !self.cloud_stt_enabled {
             return None;
         }
-        elevenlabs_api_key_from_env()
+        available_elevenlabs_api_key()
     }
 
     pub fn active_post_process_provider(&self) -> Option<&PostProcessProvider> {

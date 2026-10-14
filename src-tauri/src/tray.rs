@@ -635,28 +635,36 @@ pub fn recreate_tray_icon(app: &AppHandle) {
     }
 }
 
-pub fn copy_last_transcript(app: &AppHandle) {
+/// The newest non-empty transcript, the polished text when there is one.
+fn latest_transcript(app: &AppHandle) -> Option<String> {
     let history_manager = app.state::<Arc<HistoryManager>>();
     let entry = match history_manager.get_latest_completed_entry() {
         Ok(Some(entry)) => entry,
         Ok(None) => {
-            warn!("No completed transcription history entries available for tray copy.");
-            return;
+            warn!("No completed transcription history entries available.");
+            return None;
         }
         Err(err) => {
             error!(
                 "Failed to fetch last completed transcription entry: {}",
                 err
             );
-            return;
+            return None;
         }
     };
 
     let text = last_transcript_text(&entry);
     if text.trim().is_empty() {
-        warn!("Last completed transcription is empty; skipping tray copy.");
-        return;
+        warn!("Last completed transcription is empty.");
+        return None;
     }
+    Some(text.to_string())
+}
+
+pub fn copy_last_transcript(app: &AppHandle) {
+    let Some(text) = latest_transcript(app) else {
+        return;
+    };
 
     if let Err(err) = app.clipboard().write_text(text) {
         error!("Failed to copy last transcript to clipboard: {}", err);
@@ -664,6 +672,20 @@ pub fn copy_last_transcript(app: &AppHandle) {
     }
 
     info!("Copied last transcript to clipboard via tray.");
+}
+
+/// Pastes the newest transcript into the focused app again (overlay menu).
+pub fn paste_last_transcript(app: &AppHandle) {
+    let Some(text) = latest_transcript(app) else {
+        return;
+    };
+    let handle = app.clone();
+    // Paste runs on the main thread, as after a dictation (see actions.rs).
+    let _ = app.run_on_main_thread(move || {
+        if let Err(err) = crate::clipboard::paste(text, handle) {
+            error!("Failed to paste last transcript: {}", err);
+        }
+    });
 }
 
 #[cfg(test)]

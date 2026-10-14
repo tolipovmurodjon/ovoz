@@ -169,20 +169,29 @@
         "description": "Send your speech to ElevenLabs Scribe while you dictate. If the cloud is unavailable, the app uses the selected local model."
       },
       "keyStatus": {
-        "found": "API key found in ELEVENLABS_API_KEY",
-        "missing": "No API key: set the Windows user variable ELEVENLABS_API_KEY and restart the app"
+        "found": "Using the key from ELEVENLABS_API_KEY",
+        "missing": "No key yet: paste your ElevenLabs API key below",
+        "saved": "Key saved in Sadomi"
       },
       "language": {
         "title": "Main language",
-        "description": "Language code of what you mostly speak, for example en. Leave empty to auto-detect, which is poor for Uzbek.",
-        "placeholder": "en"
+        "description": "What you mostly speak. The other one is still heard when you mix it in. Auto-detect is poor for Uzbek.",
+        "placeholder": "en",
+        "auto": "Auto"
       },
       "secondaryLanguages": {
         "title": "Other languages you mix in",
         "description": "Comma-separated language codes you switch into, for example uz, ru.",
         "placeholder": "uz, ru"
       },
-      "fallbackNote": "When the cloud fails, the app falls back to the selected local model."
+      "fallbackNote": "When the cloud fails, the app falls back to the selected local model.",
+      "apiKey": {
+        "title": "ElevenLabs API key",
+        "placeholder": "Paste a new key",
+        "save": "Save",
+        "remove": "Remove",
+        "saveFailed": "The key could not be saved. Try again."
+      }
     },
     "general": {
       "title": "General",
@@ -747,7 +756,21 @@
   "overlay": {
     "transcribing": "Transcribing...",
     "processing": "Processing...",
-    "loadingModel": "Loading model..."
+    "loadingModel": "Loading model...",
+    "cancelled": "Cancelled",
+    "tip": {
+      "dictate": "Click or hold {{shortcut}} to dictate",
+      "finish": "Finish and paste",
+      "cancel": "Cancel"
+    },
+    "menu": {
+      "language": "Dictation language",
+      "auto": "Auto",
+      "pasteLast": "Paste last transcript",
+      "history": "Transcript history",
+      "settings": "Settings",
+      "hideHour": "Hide for 1 hour"
+    }
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} may be blocking 1 shortcut",
